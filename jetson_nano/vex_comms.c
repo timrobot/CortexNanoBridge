@@ -440,6 +440,7 @@ void *_serial_update(void *arg) {
     getttimeofday(&curr, NULL);
     if (((curr.tv_sec - t.tv_sec) * 1000000 + (curr.tv_usec - t.tv_usec)) > 10000) { // 10ms
       SendFmt2MotorMessage();
+      memcpy(&t, &curr, sizeof(t));
     }
   }
 
