@@ -9,6 +9,9 @@
 #include <dirent.h>
 #include <stdio.h>
 #include <time.h>
+#include <pthread.h>
+
+#include "vex_comms.h"
 
 // function return values
 #define SUCCESS      0
@@ -35,9 +38,6 @@ typedef struct _packet {
   short           msg_len;
   unsigned char   chk_sum;
 } packet_t;
-
-#define SER_PORT                 "/dev/ttyTHS1"
-#define BAUD                     B115200
 
 #define RX_BUF_SIZE              256
 #define RX_NO_DATA               -1
@@ -83,24 +83,12 @@ typedef struct _comms {
 
 
 // Prototypes
-int         SerialInit( char *port=SER_PORT, long baud=BAUD );
 int         _serial_setattr(int parity, long baud);
-int         SendDebugMessage( char *data );
-int         SendFmt2SensorMessage();
-void        UARTWriteSensorValue(TSensorTypes _type, short _value);
-int         SendMessage( message_t *message );
-int         SendPacket( packet_t *pkt );
-message_t * GetMessageStructure( unsigned char cmd );
+int         SendFmt2MotorMessage();
 int         ReceiveData();
 int         ReceiveFmt2Packet();
-void        ReceivePacket();
 void        DecodeMessage( message_t *message );
-int         _serial_update();
-
-void      ReadSensors();
-void      RunMotors(int *mtrV);
-
-#define SerialWriteSensor(name) UARTWriteSensorValue(SensorType(name), SensorValue(name))
+void        *_serial_update(void *arg);
 
 /*---------------------------------------------------------------------------*/
 /*  END HEADER                                                               */
@@ -113,8 +101,8 @@ static message_t  _debug_message100;
 static message_t  _motor_value_message;
 static message_t  _sensor_value_message;
 
-mutex_t           sensor_lock;
-mutex_t           motor_lock;
+pthread_mutex_t           sensor_lock;
+pthread_mutex_t           motor_lock;
 
 #define MAX_SNSR_CNT  20
 #define MAX_MTR_CNT   10
@@ -127,6 +115,8 @@ static int    _motor_values[MAX_MTR_CNT];
 static char   _extra_buf[256];
 static int    _extra_buf_len;
 
+static int    sensor_values[MAX_SNSR_CNT];
+
 #define ISHEX4(v)   (((v) >= '0' && (v) <= '9') || ((v) >= 'A' && (v) <= 'F'))
 #define TOHEX4(v)   (((v) < 10)   ? (v)+'0' : (v)+'A'-10)
 #define FROMHEX4(v) (((v) <= '9') ? (v)-'0' : (v)-'A'+10)
@@ -135,11 +125,11 @@ static int    _extra_buf_len;
 /*  Init                                                                     */
 /*---------------------------------------------------------------------------*/
 
-int SerialInit( char *port, long baud ) {
+int SerialInit( long baud ) {
   int i;
 
   // Note which serial port we are using
-  strcpy(MyComms.port, port);
+  strcpy(MyComms.port, SER_PORT);
   MyComms.fd = open(MyComms.port, O_RDWR | O_NONBLOCK);
   if (MyComms.fd == -1) {
     return FAILURE;
@@ -158,17 +148,17 @@ int SerialInit( char *port, long baud ) {
 
   // Get rid of garbage (time: 900msec)
   usleep(900000);
-  tcflush(connection->fd, TCIOFLUSH);
+  tcflush(MyComms.fd, TCIOFLUSH);
 
   // start comm task
-  MyComms.task_running = true;
+  MyComms.task_running = 1;
   if (pthread_mutex_init(&motor_lock, 0) != SUCCESS) {
     return FAILURE;
   }
   if (pthread_mutex_init(&sensor_lock, 0) != SUCCESS) {
     return FAILURE;
   }
-  return pthread_create(&MyComms.comm_task, 0, &_serial_update, NULL);
+  return pthread_create(&MyComms.comm_task, 0, _serial_update, NULL);
 }
 
 void SerialDeInit() {
@@ -252,7 +242,7 @@ int SendFmt2MotorMessage() {
   buf[2] = '[';
   buf[3] = CMD_CONTROL_MOTOR_VALUES;
 
-  mutex_lock(&motor_lock, NULL);
+  pthread_mutex_lock(&motor_lock);
   p = &buf[4];
   for (i = 0; i < 10; i++) {
     v = _motor_values[i] + 0x7F;
@@ -264,7 +254,7 @@ int SendFmt2MotorMessage() {
     ch = v & 0xF;
     *p++ = TOHEX4(ch);
   }
-  mutex_unlock(&motor_lock, NULL);
+  pthread_mutex_unlock(&motor_lock);
 
   buf[24] = 0;
   buf[25] = 0;
@@ -318,7 +308,7 @@ int ReceiveData() {
 
   if (analyzeBuffer) {
     char *end_index = strchr(storebuf, '\n');
-    if (end_index != NULL && start_index != NULL) {
+    if (end_index != NULL) {
       char *start_index = strrchr(end_index, '[');
       end_index[0] = '\0';
       end_index = &end_index[1];
@@ -420,113 +410,19 @@ int ReceiveFmt2Packet() {
     svalues[scnt++] = v;
   }
 
-  mutex_lock(&sensor_lock, NULL);
-  memcpy(_sensor_values, svals, sizeof(&_sensor_values));
+  pthread_mutex_lock(&sensor_lock);
+  memcpy(_sensor_values, svalues, sizeof(&_sensor_values));
   _sensor_cnt = scnt;
-  mutex_unlock(&sensor_lock, NULL);
+  pthread_mutex_unlock(&sensor_lock);
 
   return SUCCESS;
-}
-
-/*---------------------------------------------------------------------------*/
-/*      Received some data so start to decode packet                         */
-/*---------------------------------------------------------------------------*/
-
-void
-ReceivePacket() {
-  int             i;
-  packet_t        *RxPak;
-  message_t       *message;
-  char            ch;
-
-  RxPak = &MyComms.RxPak;
-
-  for (i = 0; i < MyComms.rxcnt; i++) {
-    ch = MyComms.rxbuf[i];
-    switch( RxPak->msg_cnt ) {
-      case    0: // should be preamble 1
-        if( ch == PREAMBLE1 ) {
-          RxPak->msg_cnt = 1;
-        } else {
-          RxPak->msg_cnt = 0;
-        }
-        break;
-
-      case    1: // should be preamble 2
-        if( ch == PREAMBLE2 ) {
-          RxPak->chk_sum = PREAMBLE1 ^ PREAMBLE2;
-          RxPak->msg_cnt = 2;
-        } else {
-          RxPak->msg_cnt = 0;
-        }
-        break;
-
-      case    2: // cmd
-        message = GetMessageStructure(ch);
-        if ( message != NULL ) {
-          RxPak->chk_sum = RxPak->chk_sum ^ ch;
-          RxPak->msg_cnt++;
-        } else {
-          RxPak->msg_cnt = 0;
-        }
-        break;
-
-      case    3: // len
-        message->length = ch;
-        RxPak->msg_len = ch + 5;
-        RxPak->chk_sum = RxPak->chk_sum ^ ch;
-        RxPak->msg_cnt++;
-        break;
-
-      default:
-        if( RxPak->msg_cnt < (RxPak->msg_len) ) {
-          message->data[RxPak->msg_cnt-4] = ch;
-          RxPak->chk_sum = RxPak->chk_sum ^ ch; // last byte will be the checksum
-          RxPak->msg_cnt++;
-        }
-        break;
-    }
-
-    // Look for packet end and run cmd
-    if( (RxPak->msg_cnt > 0) && (RxPak->msg_cnt == RxPak->msg_len) ) {
-      if( RxPak->chk_sum == 0 ) {
-        DecodeMessage( message );
-      }
-      RxPak->msg_cnt = 0;
-    }
-  }
-}
-
-/*---------------------------------------------------------------------------*/
-/*      Decode a received packet and take appropriate action                 */
-/*---------------------------------------------------------------------------*/
-
-void
-DecodeMessage( message_t *message ) {
-  int         i;
-  if ( message == NULL ) {
-    return;
-  }
-
-  // Read data
-  switch (message->cmd) {
-    case CMD_CONTROL_MOTOR_VALUES:
-      for (i = 0; i < 10; i++) {
-        _motor_values[i] = (int)(message->data[i]) - 0x7F;
-      }
-      RunMotors(_motor_values);
-      break;
-
-    default:
-      return;
-  }
 }
 
 /*---------------------------------------------------------------------------*/
 /*      Call this task often for communications                              */
 /*---------------------------------------------------------------------------*/
 
-int _serial_update() {
+void *_serial_update(void *arg) {
   int             rx_len;
 
   // Check for receive packet
@@ -537,11 +433,31 @@ int _serial_update() {
 
   // Send out a packet no matter what (buffer overflow problems?)
   if (MyComms.txto == 0) {
-    SendFmt2SensorMessage();
+    SendFmt2MotorMessage();
     MyComms.txto = 5; // reset the tx timeout to 10mS
   } else {
     MyComms.txto--;
   }
 
-  return( SUCCESS );
+  return NULL;
+}
+
+/*---------------------------------------------------------------------------*/
+/*      Getter and setter                                                    */
+/*---------------------------------------------------------------------------*/
+
+int *GetSensors() {
+  int i;
+  pthread_mutex_lock(&sensor_lock);
+  for (i = 0; i < MAX_SNSR_CNT; i++) {
+    sensor_values[i] = _sensor_values[i];
+  }
+  pthread_mutex_unlock(&sensor_lock);
+  return sensor_values;
+}
+
+void SetMotor(int port, int value) {
+  pthread_mutex_lock(&motor_lock);
+  _motor_values[port] = value;
+  pthread_mutex_unlock(&motor_lock);
 }
