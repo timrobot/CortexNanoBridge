@@ -381,7 +381,7 @@ int ReceiveFmt2Packet() {
   }
 
   // all basic checks are now out of the way
-  for (i = 4; i < _extra_buf_len - 5;) {
+  for (i = 4; i < _extra_buf_len - 3;) {
     ch = _extra_buf[i++];
     switch (ch) { // sensor decode
       case 'd':
