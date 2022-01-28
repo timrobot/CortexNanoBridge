@@ -2,6 +2,7 @@
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/time.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
@@ -424,19 +425,22 @@ int ReceiveFmt2Packet() {
 
 void *_serial_update(void *arg) {
   int             rx_len;
+  struct timeval  t, curr;
+  
+  gettimeofday(&t, NULL);
 
-  // Check for receive packet
-  rx_len = ReceiveData();
-  if( rx_len > 0 ) {
-    ReceiveFmt2Packet();
-  }
+  while (MyComms.task_running) {
+    // Check for receive packet
+    rx_len = ReceiveData();
+    if( rx_len > 0 ) {
+      ReceiveFmt2Packet();
+    }
 
-  // Send out a packet no matter what (buffer overflow problems?)
-  if (MyComms.txto == 0) {
-    SendFmt2MotorMessage();
-    MyComms.txto = 5; // reset the tx timeout to 10mS
-  } else {
-    MyComms.txto--;
+    // Send out a packet no matter what (buffer overflow problems?)
+    getttimeofday(&curr, NULL);
+    if (((curr.tv_sec - t.tv_sec) * 1000000 + (curr.tv_usec - t.tv_usec)) > 10000) { // 10ms
+      SendFmt2MotorMessage();
+    }
   }
 
   return NULL;
