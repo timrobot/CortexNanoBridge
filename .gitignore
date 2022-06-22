@@ -1,3 +1,7 @@
+# python ignore
+__pycache__/
+.vscode/
+
 # Prerequisites
 *.d
 

@@ -477,7 +477,28 @@ def _rpc_robot_values():
     "sensors": sensors
   }
 
-_mates_list = []
+_bounding_boxes = None
+_bblock = None
+
+def showBoundBoxes(boundingBoxes: list):
+  global _bounding_boxes, _bblock
+  _bblock.acquire()
+  while len(_bounding_boxes) > 0:
+    _bounding_boxes.pop(0)
+  for item in boundingBoxes:
+    _bounding_boxes.append(item)
+  _bblock.release()
+
+def _rpc_bounding_boxes():
+  global _bounding_boxes, _bblock
+  bboxes = []
+  _bblock.acquire()
+  for item in _bounding_boxes:
+    bboxes.append(item)
+  _bblock.release()
+  return bboxes
+
+_mates_list = None
 _mates_lock = None
 
 def render3d(mates): # slow! try not to do this alot
@@ -545,13 +566,14 @@ def _rpc_model():
 ################################################################################
 
 def _run_process(logbuf, lock, lasttime, en, cambuf, kboard, kvalues,
-    gpbtns, gpaxes, mlist, mlock, motors, sensors, rlock):
-  RTCStreamEntity.rpc_calls["logs"]         = _rpc_logs
-  RTCStreamEntity.rpc_calls["disable"]      = _rpc_disable
-  RTCStreamEntity.rpc_calls["enable"]       = _rpc_enable
-  RTCStreamEntity.rpc_calls["keydown"]      = _rpc_keydown
-  RTCStreamEntity.rpc_calls["gamepad"]      = _rpc_gamepad
-  RTCStreamEntity.rpc_calls["robot_values"] = _rpc_robot_values
+    gpbtns, gpaxes, bboxes, bblock, mlist, mlock, motors, sensors, rlock):
+  RTCStreamEntity.rpc_calls["logs"]           = _rpc_logs
+  RTCStreamEntity.rpc_calls["disable"]        = _rpc_disable
+  RTCStreamEntity.rpc_calls["enable"]         = _rpc_enable
+  RTCStreamEntity.rpc_calls["keydown"]        = _rpc_keydown
+  RTCStreamEntity.rpc_calls["gamepad"]        = _rpc_gamepad
+  RTCStreamEntity.rpc_calls["robot_values"]   = _rpc_robot_values
+  RTCStreamEntity.rpc_calls["bounding_boxes"] = _rpc_bounding_boxes
   # RTCStreamEntity.rpc_calls["model"]        = _rpc_model
 
   global _log_buffer, _log_lock
@@ -571,6 +593,10 @@ def _run_process(logbuf, lock, lasttime, en, cambuf, kboard, kvalues,
   global _gamepad_buttons, _gamepad_axes
   _gamepad_buttons = gpbtns
   _gamepad_axes = gpaxes
+
+  global _bounding_boxes, _bblock
+  _bounding_boxes = bboxes
+  _bblock = bblock
 
   global _mates_list, _mates_lock
   _mates_list = mlist
@@ -620,10 +646,15 @@ def init(robot):
   _gamepad_buttons = Array(ctypes.c_float, 17)
   _gamepad_axes = Array(ctypes.c_float, 4)
 
+  global _bounding_boxes, _bblock
+  _bounding_boxes = main_manager.list()
+  _bblock = Lock()
+
   global _mates_list, _mates_lock
   ml = main_manager.list()
-  for item in _mates_list:
-    ml.append(item)
+  if _mates_list:
+    for item in _mates_list:
+      ml.append(item)
   _mates_list = ml
   _mates_lock = Lock()
 
@@ -645,6 +676,7 @@ def init(robot):
     _camera_buffer,
     _keyboard_keys, _keyboard_values,
     _gamepad_buttons, _gamepad_axes,
+    _bounding_boxes, _bblock,
     _mates_list, _mates_lock,
     _motors, _sensors, _robot_lock
   ))

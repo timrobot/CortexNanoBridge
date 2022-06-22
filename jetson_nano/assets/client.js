@@ -188,6 +188,16 @@ function renderList(id, pfx, values) {
   }
 }
 
+function renderBoundingBoxes(boxes) {
+  let ul = document.getElementById("bboxes");
+  ul.innerHTML = '';
+  boxes.forEach((item) => {
+    let li = document.createElement('li');
+    li.innerHTML = item[0] + ': ' + item[1];
+    ul.append(li);
+  });
+}
+
 function onMessage(req) {
   const j = JSON.parse(req.data);
   if (j.logs) {
@@ -202,6 +212,9 @@ function onMessage(req) {
   if (j.model) {
     objects = j.model;
   }
+  if (j.bounding_boxes) {
+    renderBoundingBoxes(j.bounding_boxes);
+  }
 }
 
 function sendMessage() {
@@ -209,7 +222,8 @@ function sendMessage() {
     let msg = {
       "logs": null,
       "robot_values": null,
-      "model": null
+      "model": null,
+      "bounding_boxes": null
     };
     // if (gamepadIndex !== undefined) {
     //   const gamepad = navigator.getGamepads()[gamepadIndex];
