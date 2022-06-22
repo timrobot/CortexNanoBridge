@@ -25,21 +25,13 @@ typedef struct _message {
   unsigned char   data[MSGLEN];
 } message_t;
 
-// Structure to hold transmit or receive packet
-typedef struct _packet {
-  unsigned char   data[sizeof(message_t) + 3]; // P1, P2, cmd, len, data, chksum
-  short           msg_cnt;
-  short           msg_len;
-  unsigned char   chk_sum;
-} packet_t;
-
 #define BAUD                     baudRate115200
 
 #define RX_BUF_SIZE              256
 #define RX_NO_DATA               -1
 #define RX_BUF_ERR               -2
 
-// Fixed preambles for the messages
+// Fixed preambles for the messages (swapped for prefixes)
 #define PREAMBLE1                0x50
 #define PREAMBLE2                0xAF
 
@@ -54,10 +46,6 @@ typedef struct _comms {
     int             port;       // which Uart
     long            baud;       // baud rate of channel
     int             tcount;     // number of timeouts
-
-    // Transmit and Receive packets
-    packet_t        TxPak;
-    packet_t        RxPak;
 
     // Receive buffer
     int             rxcnt;                      // last amount of rx data
@@ -77,33 +65,28 @@ typedef struct _comms {
 int         SerialInit( int port, long baud=BAUD );
 int         InitSerial();
 void        InitMessage( message_t *message, unsigned char cmd, short data_size, short num_items );
-int         SendDebugMessage( char *data );
-int         SendFmt2SensorMessage();
-void        UARTWriteSensorValue(TSensorTypes _type, short _value);
-int         SendMessage( message_t *message );
-int         SendPacket( packet_t *pkt );
-message_t * GetMessageStructure( unsigned char cmd );
+int         SendMessage();
+void        SerialWriteSensorValue(TSensorTypes _type, int _value);
 int         ReceiveData();
-int         ReceiveFmt2Packet();
-void        ReceivePacket();
-void        DecodeMessage( message_t *message );
+int         DecodeMessage();
 int         SerialUpdate();
 
 // There are no function callbacks in ROBOTC, user must provide these functions
 void      ReadSensors();
 void      RunMotors(int *mtrV);
 
-#define SerialWriteSensor(name) UARTWriteSensorValue(SensorType(name), SensorValue(name))
+#define SerialWriteSensor(name) SerialWriteSensorValue(SensorType(name), SensorValue(name))
 
 /*---------------------------------------------------------------------------*/
 /*  END HEADER                                                               */
 /*---------------------------------------------------------------------------*/
 
 // No dynamic memory in ROBOTC so use fixed storage
+static char *_prefix;
 static comms_t MyComms;
 
 // messages
-static message_t _debug_message100;
+static message_t _debug_message;
 static message_t _motor_value_message;
 static message_t _sensor_value_message;
 
@@ -111,16 +94,14 @@ static message_t _sensor_value_message;
 #define MAX_MTR_CNT   10
 
 // read/write bufs
-static short  _sensor_values[MAX_SNSR_CNT];
+static int    _sensor_values[MAX_SNSR_CNT];
 static char   _sensor_type[MAX_SNSR_CNT];
 static int    _sensor_cnt;
 static int    _motor_values[MAX_MTR_CNT];
-static char   _extra_buf[256];
-static int    _extra_buf_len;
 
-#define ISHEX4(v)   (((v) >= '0' && (v) <= '9') || ((v) >= 'A' && (v) <= 'F'))
-#define TOHEX4(v)   (((v) < 10)   ? (v)+'0' : (v)+'A'-10)
-#define FROMHEX4(v) (((v) <= '9') ? (v)-'0' : (v)-'A'+10)
+#define ISHEX4(v)   (((v) >= '0' && (v) <= '9') || ((v) >= 'a' && (v) <= 'f'))
+#define TOHEX4(v)   (((v) <= 9)   ? (v)+'0' : (v)+'a'-10)
+#define FROMHEX4(v) (((v) <= '9') ? (v)-'0' : (v)-'a'+10)
 
 /*---------------------------------------------------------------------------*/
 /*  ROBOTC glue code                                                         */
@@ -243,8 +224,9 @@ RobotC_SetParity( int port, serParType parity )
 /*---------------------------------------------------------------------------*/
 
 int
-SerialInit( int port, long baud ) {
+SerialInit( int port, long baud, char *prefix ) {
   int i;
+  _prefix = prefix;
 
   // Note which serial port we are using
   MyComms.port    = port;
@@ -261,7 +243,7 @@ SerialInit( int port, long baud ) {
     _sensor_values[i] = 0;
 
   // Create messge templates
-  InitMessage( &_debug_message100,  CMD_STATUS_DEBUG, sizeof(char), 100 );
+  InitMessage( &_debug_message,        CMD_STATUS_DEBUG,         sizeof(char), MSGLEN );
   InitMessage( &_motor_value_message,  CMD_CONTROL_MOTOR_VALUES, sizeof(char), MSGLEN );
   InitMessage( &_sensor_value_message, CMD_STATUS_SENSOR_VALUES, sizeof(char), MSGLEN );
 
@@ -300,48 +282,12 @@ InitSerial()
 
     return(SUCCESS);
 }
-
-/*---------------------------------------------------------------------------*/
-/*      Send a message as debug line                                         */
-/*---------------------------------------------------------------------------*/
-
-int
-SendDebugMessage(char *data) {
-  int    strlength = 0;
-  char   *p, *q;
-  int    i;
-
-  while (data[strlength] > 0) {
-    strlength++;
-  }
-  if (strlength > 100) {
-    return( FAILURE );
-  }
-
-  _debug_message100.length = strlength + 2;
-  p = data;
-  q = &_debug_message100.data[0];
-  *q++ = 0;
-  *q++ = 0;
-  if (strlength > 0) {
-    for (i = 0; i < strlength; i++) {
-      *q++ = *p++;
-    }
-  }
-
-  RobotC_WriteBuf( MyComms.port, _debug_message100.data, _debug_message100.length );
-
-  //SendMessage( &_debug_message100 );
-
-  return( SUCCESS );
-}
-
 /*---------------------------------------------------------------------------*/
 /*      Get sensor values and send them                                      */
 /*---------------------------------------------------------------------------*/
 
 void
-UARTWriteSensorValue(TSensorTypes _type, short _value) {
+SerialWriteSensorValue(TSensorTypes _type, int _value) {
   switch (_type) {
     case sensorAnalog:
     case sensorPotentiometer:
@@ -349,7 +295,7 @@ UARTWriteSensorValue(TSensorTypes _type, short _value) {
     case sensorLineFollower:
     case sensorGyro:
     case sensorAccelerometer:
-      _sensor_type[_sensor_cnt] = 'a';
+      _sensor_type[_sensor_cnt] = 's';
       break;
 
     case sensorTouch:
@@ -357,7 +303,7 @@ UARTWriteSensorValue(TSensorTypes _type, short _value) {
     case sensorDigitalIn:
     case sensorDigitalOut:
     case sensorDigitalHighImpedance:
-      _sensor_type[_sensor_cnt] = 'd';
+      _sensor_type[_sensor_cnt] = 'w';
       break;
 
     case sensorSONAR_TwoPins_cm:
@@ -368,7 +314,7 @@ UARTWriteSensorValue(TSensorTypes _type, short _value) {
       break;
 
     case sensorQuadEncoder:
-      _sensor_type[_sensor_cnt] = 'q';
+      _sensor_type[_sensor_cnt] = 'l';
       break;
 
     default:
@@ -382,17 +328,14 @@ UARTWriteSensorValue(TSensorTypes _type, short _value) {
 #define EHEX(v) (((v) < 10) ? (v)+'0' : ((v) < 36 ? (v)+'A'-10 : (v)+'_'-36))
 
 int
-SendFmt2SensorMessage() {
-  int             i, j;
+SendMessage() {
+  int             i;
   char            *buf = &_sensor_value_message.data[0];
-  int             total_bytes = 0, num_bytes;
   char            *_data;
-  short           _value;
-  unsigned char   chk_sum = 0, v;
+  int             _value;
+  unsigned char   chk_sum = 0, total_bytes = 0;
 
-  // reset sensor id
-  _sensor_cnt = 0;
-  ReadSensors();
+  int             voltage_level = nAvgBatteryLevel;
 
   // We are going to have to use a special fmt to compose the message
   buf[0] = 0;  // in case of de-sync
@@ -402,120 +345,48 @@ SendFmt2SensorMessage() {
   _data = &buf[6];
 
   for (i = 0; i < _sensor_cnt; i++) {
-    _value = _sensor_values[i];
+    _value = (unsigned short)_sensor_values[i];
 
+    *_data++ = _sensor_type[i];
+    total_bytes++;
     switch (_sensor_type[i]) {
-      case 'd': // 1 bit
-        num_bytes = 1;
+      case 'w': // 1 bit
+        *_data++ = (_value & 0x1) + '0';
+        total_bytes++;
         break;
-      case 'a': // 12 bits
-        num_bytes = 3;
+      case 's': // 16 bits
+        sprintf(_data, "%04x", _value & 0xFFFF);
+        _data += 4;
+        total_bytes += 4;
         break;
-      case 's': // 12 bits
-        num_bytes = 3;
-        break;
-      case 'q': // 16 bits
-        num_bytes = 4;
+      case 'l': // 32 bits
+        sprintf(_data, "%08x", _value);
+        _data += 8;
+        total_bytes += 8;
         break;
       default:
-        num_bytes = 2;
+        *_data++ = _value;
+        total_bytes++;
         break;
     }
-    total_bytes += 1 + num_bytes;
-
-    // write to buf
-    *_data++ = _sensor_type[i];
-    _data += num_bytes;
-    for (j = 0; j < num_bytes; j++) {
-      v = _value & 0xF;
-      *(--_data) = TOHEX4(v);
-      _value >>= 4;
-    }
-    _data += num_bytes;
   }
 
-  total_bytes += 8; // [ Cmd Len1 Len2 ... ChkSum1 ChkSum2 ] \n
-  v = total_bytes & 0xF;
-  buf[5] = TOHEX4(v);
-  v = (total_bytes >> 4) & 0xF;
-  buf[4] = TOHEX4(v);
+  total_bytes += 7; // [ Cmd Len1 Len2 ... ChkSum1 ChkSum2 ]
+  buf[4] = TOHEX4((total_bytes >> 4) & 0xF);
+  buf[5] = TOHEX4(total_bytes & 0xF);
 
-  buf[total_bytes-2] = 0;
   buf[total_bytes-1] = 0;
-  buf[total_bytes] = ']';
-  buf[total_bytes+1] = '\n';
+  buf[total_bytes] = 0;
+  buf[total_bytes+1] = ']';
+  buf[total_bytes+2] = '\n';
 
-  for (i = 2; i < 2 + total_bytes; i++) {
+  for (i = 2; i < total_bytes + 2; i++) {
     chk_sum ^= buf[i];
   }
-  v = chk_sum & 0xF;
-  buf[total_bytes-1] = TOHEX4(v);
-  v = (chk_sum >> 4) & 0xF;
-  buf[total_bytes-2] = TOHEX4(v);
+  buf[total_bytes-1] = TOHEX4((chk_sum >> 4) & 0xF);
+  buf[total_bytes]   = TOHEX4(chk_sum & 0xF);
 
-  RobotC_WriteBuf(MyComms.port, buf, total_bytes + 2);
-
-  return( SUCCESS );
-}
-
-/*---------------------------------------------------------------------------*/
-/*      Take message and place into tx packet                                */
-/*---------------------------------------------------------------------------*/
-
-int
-SendMessage( message_t *message ) // SendPacket()
-{
-  unsigned int    i;
-  unsigned char   *p, *q;
-  packet_t        *pkt;
-
-  pkt = &MyComms.TxPak;
-
-  // Get command length, add 5 bytes for overhead
-  // [PR1|PR2|CMD|LEN|data|CHK_SUM]
-  pkt->msg_len = (message->length) + 5;
-
-  // Create header
-  pkt->data[0] = 0;
-  pkt->data[1] = 0; // for some reason we need these two
-  pkt->data[2] = PREAMBLE1;
-  pkt->data[3] = PREAMBLE2;
-  pkt->data[4] = message->cmd;
-  pkt->data[5] = message->length;
-
-  // Start of checksum
-  q = &pkt->data[2];
-  i = 0;
-  for (pkt->chk_sum = 0; i < 4; i++)
-    pkt->chk_sum ^= *q++;
-
-  // move any data that exists
-  if (message->length > 0) {
-    p = &message->data[0];
-    for (i = 0; i < message->length; i++) {
-      pkt->chk_sum ^= *p;
-      *q++ = *p++;
-    }
-  }
-
-  // put checksum into packet
-  *q++ = pkt->chk_sum;
-
-  // Send packet (do not wait for reply)
-  SendPacket( pkt );
-
-  return( SUCCESS );
-}
-
-/*---------------------------------------------------------------------------*/
-/*      Take packet and start transmission                                   */
-/*---------------------------------------------------------------------------*/
-
-int
-SendPacket( packet_t *pkt ) {
-  // Transmit
-  RobotC_WriteBuf( MyComms.port, pkt->data, pkt->msg_len + 2 );
-
+  RobotC_WriteBuf(MyComms.port, buf, total_bytes + 3);
   return( SUCCESS );
 }
 
@@ -525,9 +396,8 @@ SendPacket( packet_t *pkt ) {
 
 int
 ReceiveData() {
-  int         data;
-  bool        delim_found = false;
-  int         i;
+  int         c;
+  int         delim_found = 0;
 
   // If we don't have recv any data, then just return
   if( RobotC_PeekInput() == RX_NO_DATA ) {
@@ -538,195 +408,103 @@ ReceiveData() {
   // initial partial packets will drop
   MyComms.rxcnt = 0;
 
-  // Read everything available
+  // Read everything available, we dont care about checksum
   do {
-    data = RobotC_GetChar();
-    if( data >= 0 ) {
-      if (data == '[') {
+    c = RobotC_GetChar();
+    if( c >= 0 ) {
+      if (c == '[') {
         MyComms.rxcnt = 0;
       }
-      MyComms.rxbuf[MyComms.rxcnt++] = data;
+      MyComms.rxbuf[MyComms.rxcnt++] = c;
       if( MyComms.rxcnt == RX_BUF_SIZE )
         return( RX_BUF_ERR );
-      if (data == ']') {
-        delim_found = true;
-        for (i = 0; i < MyComms.rxcnt; i++) {
-          _extra_buf[i] = MyComms.rxbuf[i];
-        }
-        _extra_buf[i] = 0;
-        _extra_buf_len = MyComms.rxcnt;
+      if (c == ']') {
+        delim_found = 1;
+        memcpy(&_motor_value_message.data[0], &MyComms.rxbuf[0], MyComms.rxcnt);
+        _motor_value_message.data[MyComms.rxcnt] = 0;
+        _motor_value_message.length = MyComms.rxcnt;
         MyComms.rxcnt = 0;
         break;
       }
     }
-  } while( data >= 0 );
+  } while( c >= 0 );
 
-  if (delim_found && _extra_buf[0] == '[') {
-    return( _extra_buf_len );
+  if (delim_found && _motor_value_message.data[0] == '[') {
+    _motor_value_message.cmd = _motor_value_message.data[1];
+    return( _motor_value_message.length );
   } else {
     return 0;
   }
  }
 
 /*---------------------------------------------------------------------------*/
-/*      Select message based on cmd                                          */
-/*---------------------------------------------------------------------------*/
-
-message_t *
-GetMessageStructure(unsigned char cmd) {
-  switch (cmd) {
-    case CMD_CONTROL_MOTOR_VALUES:
-      return &_motor_value_message;
-
-    default:
-      return NULL;
-  }
-}
-
-/*---------------------------------------------------------------------------*/
 /*      Received some data so start to decode packet (format2)               */
 /*---------------------------------------------------------------------------*/
 
+#define EMBED_ERR_CODE(x) { \
+    _motor_values[0] = (13 << 4) + 14 - 0x7F; \
+    _motor_values[1] = (10 << 4) + 13 - 0x7F; \
+    _motor_values[2] = x - 0x7F; \
+}
+
 int
-ReceiveFmt2Packet() {
-  int             i;
-  message_t       *message;
-  char            m1, m2, *p;
-  unsigned char   chk_sum;
+DecodeMessage() {
+  int             i, length;
+  message_t       *msg = &_motor_value_message;
+  char            m1, m2, *p = &msg->data[0];
+  unsigned char   chk_sum, cmd;
 
-  message = &_motor_value_message;
-  message->length = _extra_buf_len;
+  // message: [MLLDDDDDDDDDDDDDDDDDDDDCC]
 
-  if (_extra_buf[0] != '[' || _extra_buf[_extra_buf_len-1] != ']') {
+  if (*p++ != '[' || msg->data[msg->length-1] != ']') {
     return( FAILURE );
   }
 
-  if (_extra_buf[1] != CMD_CONTROL_MOTOR_VALUES || (_extra_buf_len != 20+5)) {
+  cmd = *p++;
+  if (cmd != CMD_CONTROL_MOTOR_VALUES) {
     return( FAILURE );
   }
 
-  if (!ISHEX4(_extra_buf[22]) || !ISHEX4(_extra_buf[23])) {
-    return FAILURE;
+  m1 = *p++;
+  m2 = *p++;
+  if (!ISHEX4(m1) || !ISHEX4(m2)) {
+    return( FAILURE );
   }
-  chk_sum = ((FROMHEX4(_extra_buf[22]) << 4) + FROMHEX4(_extra_buf[23])) ^ '\n';
+  length = ((FROMHEX4(m1) << 4) + FROMHEX4(m2));
+  if ((int)msg->length != length) {
+    return( FAILURE );
+  }
 
-  _extra_buf[22] = 0;
-  _extra_buf[23] = 0;
-  for (i = 0; i < 25; i++) {
-    chk_sum ^= _extra_buf[i];
+  p += length - 7; // 7 bytes for [MLL...CC]
+  m1 = *p++;
+  m2 = *p;
+  if (!ISHEX4(m1) || !ISHEX4(m2)) {
+    return( FAILURE );
+  }
+  chk_sum = ((FROMHEX4(m1) << 4) + FROMHEX4(m2));
+
+  *p-- = 0;
+  *p   = 0;
+  p = &msg->data[0];
+  for (i = 0; i < length; i++) {
+    chk_sum ^= *p++;
   }
   if (chk_sum != 0) {
-    return FAILURE;
+    return( FAILURE );
   }
 
-  p = &_extra_buf[2];
+  p = &msg->data[4];
   for (i = 0; i < 10; i++) {
     m1 = *p++;
     m2 = *p++;
 
     if (!ISHEX4(m1) || !ISHEX4(m2)) {
-      return FAILURE;
+      return( FAILURE );
     }
-    message->data[i] = (char)((FROMHEX4(m1) << 4) + FROMHEX4(m2));
+    _motor_values[i] = (int)((FROMHEX4(m1) << 4) + FROMHEX4(m2)) - 0x7F;
   }
-
-  DecodeMessage(message);
 
   return( SUCCESS );
-}
-
-/*---------------------------------------------------------------------------*/
-/*      Received some data so start to decode packet                         */
-/*---------------------------------------------------------------------------*/
-
-void
-ReceivePacket() {
-  int             i;
-  packet_t        *RxPak;
-  message_t       *message;
-  char            ch;
-
-  RxPak = &MyComms.RxPak;
-
-  for (i = 0; i < MyComms.rxcnt; i++) {
-    ch = MyComms.rxbuf[i];
-    switch( RxPak->msg_cnt ) {
-      case    0: // should be preamble 1
-        if( ch == PREAMBLE1 ) {
-          RxPak->msg_cnt = 1;
-        } else {
-          RxPak->msg_cnt = 0;
-        }
-        break;
-
-      case    1: // should be preamble 2
-        if( ch == PREAMBLE2 ) {
-          RxPak->chk_sum = PREAMBLE1 ^ PREAMBLE2;
-          RxPak->msg_cnt = 2;
-        } else {
-          RxPak->msg_cnt = 0;
-        }
-        break;
-
-      case    2: // cmd
-        message = GetMessageStructure(ch);
-        if ( message != NULL ) {
-          RxPak->chk_sum = RxPak->chk_sum ^ ch;
-          RxPak->msg_cnt++;
-        } else {
-          RxPak->msg_cnt = 0;
-        }
-        break;
-
-      case    3: // len
-        message->length = ch;
-        RxPak->msg_len = ch + 5;
-        RxPak->chk_sum = RxPak->chk_sum ^ ch;
-        RxPak->msg_cnt++;
-        break;
-
-      default:
-        if( RxPak->msg_cnt < (RxPak->msg_len) ) {
-          message->data[RxPak->msg_cnt-4] = ch;
-          RxPak->chk_sum = RxPak->chk_sum ^ ch; // last byte will be the checksum
-          RxPak->msg_cnt++;
-        }
-        break;
-    }
-
-    // Look for packet end and run cmd
-    if( (RxPak->msg_cnt > 0) && (RxPak->msg_cnt == RxPak->msg_len) ) {
-      if( RxPak->chk_sum == 0 ) {
-        DecodeMessage( message );
-      }
-      RxPak->msg_cnt = 0;
-    }
-  }
-}
-
-/*---------------------------------------------------------------------------*/
-/*      Decode a received packet and take appropriate action                 */
-/*---------------------------------------------------------------------------*/
-
-void
-DecodeMessage( message_t *message ) {
-  int         i;
-  if ( message == NULL ) {
-    return;
-  }
-
-  // Read data
-  switch (message->cmd) {
-    case CMD_CONTROL_MOTOR_VALUES:
-      for (i = 0; i < 10; i++) {
-        _motor_values[i] = (int)(message->data[i]) - 0x7F;
-      }
-      RunMotors(_motor_values);
-      break;
-
-    default:
-      return;
-  }
 }
 
 /*---------------------------------------------------------------------------*/
@@ -740,12 +518,15 @@ SerialUpdate() {
   // Check for receive packet
   rx_len = ReceiveData();
   if( rx_len > 0 ) {
-    ReceiveFmt2Packet();
+    DecodeMessage();
+    RunMotors(_motor_values);
   }
 
   // Send out a packet no matter what (buffer overflow problems?)
+  _sensor_cnt = 0;
+  ReadSensors();
   if (MyComms.txto == 0) {
-    SendFmt2SensorMessage();
+    SendMessage();
     MyComms.txto = 5; // reset the tx timeout to 10mS
   } else {
     MyComms.txto--;
