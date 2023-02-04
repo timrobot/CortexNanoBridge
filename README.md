@@ -3,8 +3,8 @@ Create a tiny framework to be used at NVIDIA for the club for controlling Vex Ro
 
 # CortexNanoBridge
 - [x] Create a comms bridge between the VEX Cortex and Jetson Nano over UART
-- [] Add connection to server for getting poses
-- [] Create simple display for robot sensors, motors, controls, video, gps
+- [ ] Add connection to server for getting poses
+- [ ] Create simple display for robot sensors, motors, controls, video, gps
 
 # Example
 

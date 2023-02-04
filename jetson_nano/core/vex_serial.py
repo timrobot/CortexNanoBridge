@@ -9,8 +9,7 @@ from ctypes import c_float
 
 class ProtectedZeroList:
   def __init__(self, length, writeable=True, permissive=None):
-    # self._data = RawArray(c_float, length)
-    self._data = [0] * length
+    self._data = RawArray(c_float, length)
     self._writeable = writeable
     self._permissive = permissive
     self._lock = threading.Lock()
@@ -240,14 +239,15 @@ class VexCortex(threading.Thread):
     return timestamp
 
   def stop_motors(self):
+    for i in range(10):
+      self._motor_values[i] = 0
     self._send_message([0] * 10)
 
   def clean(self):
     if self._connection:
-      self.stop_motors()
-      time.sleep(0.1)
-      self.stop_motors()
-      time.sleep(0.1)
+      for i in range(10):
+        self.stop_motors()
+        time.sleep(0.05)
       self._connection.close()
       self._connection = None
     self.path = None
