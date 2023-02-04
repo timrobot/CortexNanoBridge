@@ -31,7 +31,7 @@ typedef struct _message {
 #define RX_NO_DATA               -1
 #define RX_BUF_ERR               -2
 
-// Fixed preambles for the messages (swapped for prefixes)
+// Fixed preambles for the messages
 #define PREAMBLE1                0x50
 #define PREAMBLE2                0xAF
 
@@ -82,7 +82,6 @@ void      RunMotors(int *mtrV);
 /*---------------------------------------------------------------------------*/
 
 // No dynamic memory in ROBOTC so use fixed storage
-static char *_prefix;
 static comms_t MyComms;
 
 // messages
@@ -224,9 +223,8 @@ RobotC_SetParity( int port, serParType parity )
 /*---------------------------------------------------------------------------*/
 
 int
-SerialInit( int port, long baud, char *prefix ) {
+SerialInit( int port, long baud ) {
   int i;
-  _prefix = prefix;
 
   // Note which serial port we are using
   MyComms.port    = port;
