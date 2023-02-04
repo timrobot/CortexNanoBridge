@@ -1,18 +1,20 @@
-from robocomms import RobotEntity
-import netcomms as nc
+from core.robocomms import CortexController
+from core import netcomms as nc
 import time
-# import cv2
+import numpy as np
 
 if __name__ == "__main__":
-  robot = Robot("/dev/ttyUSB0")
+  robot = CortexController("COM4")
   robot.connect()
   
-  # other stuff which might be useful
-  # cam = cv2.VideoCapture(0)
-  nc.log("Connected to robot")
-
+  start_time = time.time()
   while robot.running():
-    # nc.imshow(cam.read()[1])
-    # print(nc.keyboard())
-    robot.motor[0] = 0
+    left = np.sin(time.time() - start_time) * 30
+    right = np.sin(time.time() - start_time) * 30
+
+    robot.motor[1] = -right
+    robot.motor[2] = -right
+    robot.motor[3] = left
+    robot.motor[4] = left
+
     time.sleep(0.01)

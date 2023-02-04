@@ -1,11 +1,31 @@
-import vex_serial
-
+from . import vex_serial
 import time
 from collections import deque
 import numpy as np
-import netcomms as nc
 
 _entity = None
+
+class Ports:
+  PORT1  =  0
+  PORT2  =  1
+  PORT3  =  2
+  PORT4  =  3
+  PORT5  =  4
+  PORT6  =  5
+  PORT7  =  6
+  PORT8  =  7
+  PORT9  =  8
+  PORT10 =  9
+  PORT11 = 10
+  PORT12 = 11
+  PORT13 = 12
+  PORT14 = 13
+  PORT15 = 14
+  PORT16 = 15
+  PORT17 = 16
+  PORT18 = 17
+  PORT19 = 18
+  PORT20 = 19
 
 class State:
   def __init__(self, sensorValues, timestamp=None):
@@ -13,10 +33,9 @@ class State:
     self.timestamp = timestamp if timestamp else time.time()
     self.values = {}
 
-class RobotEntity(vex_serial.VexCortex): # just a wrapper really with state mgmt
-  def __init__(self, prefix=""):
-    super().__init__()
-    self.prefix = prefix #FIXME need to do something with this
+class CortexController(vex_serial.VexCortex): # just a wrapper really with state mgmt
+  def __init__(self, path=None, baud=115200):
+    super().__init__(path=path, baud=baud)
     self._state = State(self.sensors(), 0.0)
 
     global _entity
@@ -46,9 +65,6 @@ class RobotEntity(vex_serial.VexCortex): # just a wrapper really with state mgmt
 
   def connect(self):
     global _entity
-    if _entity is self:
-      nc.init(self)
-
     self.start()
 
   def disconnect(self):
@@ -80,11 +96,11 @@ class DeviceHandler:
     return self._timestamp
 
 class SensorValue(DeviceHandler): # source state
-  def __init__(self, index: int):
-    self.index = index
+  def __init__(self, port: int):
+    self.port = port
 
   def value(self, state: State):
-    return state.sensors[self.index] # we want to update the internal state as well
+    return state.sensors[self.port] # we want to update the internal state as well
 
 class SensorEncoder(DeviceHandler):
   def __init__(self, outputRange: tuple, input: int,
@@ -141,9 +157,9 @@ class SensorEncoder(DeviceHandler):
     self.acc = acc
     return acc
 
-class MotorController:
-  def __init__(self, index: int, max_acceleration=0.0, max_deceleration=0.0):
-    self.index = index
+class Motor:
+  def __init__(self, port: int, max_acceleration=0.0, max_deceleration=0.0):
+    self.port = port
     self.acceleration = max_acceleration
     self.deceleration = max_deceleration if max_deceleration != 0.0 else max_acceleration
 
@@ -169,15 +185,15 @@ class MotorController:
       self.current += np.clip(diff, -max_rate, max_rate)
 
     global _entity
-    _entity.motor[self.index] = self.current
+    _entity.motor[self.port] = self.current
 
   def stop(self):
     self.current = 0.0
-    _entity.motor[self.index] = 0.0
+    _entity.motor[self.port] = 0.0
 
-class PIDMotorController:
+class PIDController:
   # FIXME add max acceleration/deceleration for safety
-  def __init__(self, index: int, input, kp=1.0, ki=0.0, kd=0.0,
+  def __init__(self, port: int, input, kp=1.0, ki=0.0, kd=0.0,
       reverse=False, sumLimits=(-1.0, 1.0)):
     self.kp = kp
     self.ki = ki
@@ -185,7 +201,7 @@ class PIDMotorController:
 
     self.reverse = reverse
     self.input = input
-    self.index = index
+    self.port = port
     self.sumLimits = sumLimits
 
     self.sum_error = 0.0
@@ -216,7 +232,7 @@ class PIDMotorController:
       if self.reverse: self.current = -self.current
 
     global _entity
-    _entity.motor[self.index] = self.current
+    _entity.motor[self.port] = self.current
 
   def reset(self):
     self.sum_error = 0.0

@@ -1,8 +1,8 @@
 import numpy as np
 import threading
 import time
-import vex_serial
-import netcomms as nc
+from . import vex_serial
+from . import netcomms as nc
 
 class VirtualRobot(threading.Thread):
   def __init__(self):
@@ -24,6 +24,12 @@ class VirtualRobot(threading.Thread):
       time.sleep(0.001)
 
   def microcontroller(self, motors, sensors, dt):
+    """
+    Use this function in order to simulate what might happen on the
+    microcontroller (eg. sensor value changes)
+    It can be as simple as direct sensor manipulation or as complicated as a
+    simulator
+    """
     pass
 
   def connect(self):

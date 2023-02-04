@@ -310,11 +310,6 @@ def _rpc_logs():
 
 _enabled = False
 
-def update_handler():
-  global _enabled
-  global _global_robot
-  _global_robot._enabled = connected() and _enabled.value
-
 def _rpc_enable():
   global _enabled
   _enabled.value = True
@@ -664,7 +659,6 @@ def init(robot):
   _motors = _global_robot._motor_values._data
   _sensors = _global_robot._sensor_values._data
   _robot_lock = Lock()
-  robot.onUpdate(update_handler)
 
   if hasattr(robot, "render3d"):
     render3d(robot.render3d())

@@ -9,7 +9,8 @@ from ctypes import c_float
 
 class ProtectedZeroList:
   def __init__(self, length, writeable=True, permissive=None):
-    self._data = RawArray(c_float, length)
+    # self._data = RawArray(c_float, length)
+    self._data = [0] * length
     self._writeable = writeable
     self._permissive = permissive
     self._lock = threading.Lock()
@@ -60,6 +61,9 @@ class ProtectedZeroList:
     self._lock.release()
     return _new_copy
 
+  def __str__(self):
+    return str([x for x in self._data])
+
 RXMAX = 200
 CMD_CONTROL_MOTOR_VALUES = 'M'
 CMD_STATUS_SENSOR_VALUES = 'S'
@@ -72,14 +76,13 @@ def handle_signal(sig, frame):
 signal.signal(signal.SIGINT, handle_signal)
 
 class VexCortex(threading.Thread):
-  def __init__(self, port=None, baud=115200):
+  def __init__(self, path=None, baud=115200):
     super().__init__()
 
-    self.port = port
+    self.path = path
     self.baud = baud
     self._connection = None
-    self._update_handler = None
-    self._enabled = False
+    self._enabled = True #False
 
     self._read_buf = ""
     self._write_buf = ""
@@ -93,22 +96,26 @@ class VexCortex(threading.Thread):
     self._motor_values = ProtectedZeroList(10)
     self._last_tx_timestamp = None
 
-  def _autofind_port(self): # FIXME: do a more dynamic port finder using prefix
+  def _autofind_path(self): # todo: do a more dynamic path finder using prefix
     # https://stackoverflow.com/questions/12090503/listing-available-com-ports-with-python?msclkid=bafb28c0ceb211ec97c565cfa73ea467
     if sys.platform.startswith('win'):
-      ports = ["COM%s" % (i + 1) for i in range(256)]
+      paths = ["COM%s" % (i + 1) for i in range(256)]
     elif sys.platform.startswith('linux'):
-      ports = glob.glob("/dev/ttyUSB*")
+      paths = glob.glob("/dev/ttyUSB*") + glob.glob("/dev/ttyACM*")
     else:
       raise EnvironmentError("Unsupported platform")
 
-    for port in ports:
+    if len(paths) == 0:
+      raise EnvironmentError("Cannot find suitable port")
+
+    for path in paths:
       try:
-        self._connection = serial.Serial(port, self.baud)
-        self.port = port
+        self._connection = serial.Serial(path, self.baud)
+        self.path = path
+        break # once it has found one, we are good
       except (OSError, serial.SerialException):
         self._connection = None
-        self.port = None
+        self.path = None
 
   def _receive_data(self):
     while (c := self._connection.read()):
@@ -134,10 +141,6 @@ class VexCortex(threading.Thread):
   def _decode_message(self, msg):
     if len(msg) == 0: return None
     if msg[0] != '[' or msg[-1] != ']': return None
-
-    # device_id = int(msg[1:3], base=16) # not implemented yet
-    # if device_id > 0xFF:
-    #   return
 
     if msg[1] not in [CMD_STATUS_SENSOR_VALUES]:#, CMD_STATUS_DEBUG]:
       return None
@@ -190,24 +193,22 @@ class VexCortex(threading.Thread):
     for c in msg:
       chk_sum ^= ord(c)
     msg = msg[:-1] + ("%02x" % chk_sum) + "]\n"
+    print(f">> {msg}")
     self._connection.write(msg.encode())
-
-  def onUpdate(self, handler):
-    self._update_handler = handler
 
   def enabled(self):
     return not self._enabled
 
   def run(self, argpasser=None):
-    if not self.port:
-      self._autofind_port()
-      if not self.port:
-        raise EnvironmentError(f"Could not find any port")
+    if not self.path:
+      self._autofind_path()
+      if not self.path:
+        raise EnvironmentError(f"Could not find any path")
     else:
       try:
-        self._connection = serial.Serial(self.port, self.baud)
+        self._connection = serial.Serial(self.path, self.baud)
       except (OSError, serial.SerialException):
-        raise EnvironmentError(f"Could not find specified port: {self.port}")
+        raise EnvironmentError(f"Could not find specified path: {self.path}")
 
     global _kill_event
     while not _kill_event.is_set():
@@ -220,11 +221,9 @@ class VexCortex(threading.Thread):
           self._last_rx_timestamp = time.time()
           self._rx_timestamp_lock.release()
 
-      self._update_handler() # called after receiving data to see what to do
-
-      # outgoing 200hz, incoming 100hz
+      # outgoing 50hz, incoming 100hz
       t = time.time()
-      if self._last_tx_timestamp is None or t - self._last_tx_timestamp > 0.005:
+      if self._last_tx_timestamp is None or t - self._last_tx_timestamp > 0.02:
         self._last_tx_timestamp = t
         motor_values = self._motor_values.clone()
         if not self._enabled:
@@ -240,22 +239,39 @@ class VexCortex(threading.Thread):
     self._rx_timestamp_lock.release()
     return timestamp
 
+  def stop_motors(self):
+    self._send_message([0] * 10)
+
   def clean(self):
     if self._connection:
+      self.stop_motors()
+      time.sleep(0.1)
+      self.stop_motors()
+      time.sleep(0.1)
       self._connection.close()
       self._connection = None
-    self.port = None
+    self.path = None
     self._last_tx_timestamp = None
     self._sensor_values = []
 
-  def close(self):
+  def stop_connection(self):
     signal.raise_signal(signal.SIGTERM)
 
   @property
   def motor(self):
+    """Return the reference to the motor array
+
+    Returns:
+        ProtectedZeroList: reference to the motor values
+    """
     return self._motor_values
 
   def motors(self):
+    """Get the motor values from the microcontroller
+
+    Returns:
+        List[float]: a copy of the motor values
+    """
     return self._motor_values.clone()
 
   @property

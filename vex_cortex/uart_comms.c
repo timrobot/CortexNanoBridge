@@ -73,7 +73,7 @@ int         SerialUpdate();
 
 // There are no function callbacks in ROBOTC, user must provide these functions
 void      ReadSensors();
-void      RunMotors(int *mtrV);
+void      RunMotors(int *val);
 
 #define SerialWriteSensor(name) SerialWriteSensorValue(SensorType(name), SensorValue(name))
 
@@ -340,7 +340,7 @@ SendMessage() {
   buf[1] = 0;  // in case of de-sync
   buf[2] = '[';
   buf[3] = CMD_STATUS_SENSOR_VALUES;
-  _data = &buf[6];
+  _data = &buf[6]; // push to 6 since we need 4,5 for len
 
   for (i = 0; i < _sensor_cnt; i++) {
     _value = (unsigned short)_sensor_values[i];
