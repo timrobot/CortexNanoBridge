@@ -1,6 +1,5 @@
 from core.robocomms import CortexController
 from core import netcomms as nc
-import time
 
 if __name__ == "__main__":
   robot = CortexController("COM4")
@@ -13,6 +12,5 @@ if __name__ == "__main__":
     robot.motor[2] = (keys.KeyS - keys.KeyW) * 63
     robot.motor[3] = (keys.KeyQ - keys.KeyA) * 63
     robot.motor[4] = (keys.KeyQ - keys.KeyA) * 63
-    time.sleep(0.01)
 
   nc.close()
