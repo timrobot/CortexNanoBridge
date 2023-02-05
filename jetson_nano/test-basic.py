@@ -1,5 +1,4 @@
 from core.robocomms import CortexController
-from core import netcomms as nc
 import time
 
 if __name__ == "__main__":
