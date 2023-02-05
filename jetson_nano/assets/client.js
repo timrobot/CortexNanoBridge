@@ -92,6 +92,8 @@ window.startVideoStream = function() {
 // });
 
 let scene, camera, renderer;
+let geometries = [];
+let materials = [];
 const mate_geometry = new SphereBufferGeometry(0.5, 12, 8);
 const mate_material = new MeshStandardMaterial({ color: 0xff0000 });
 let objects = {};
@@ -263,7 +265,7 @@ function constructSocket(ip) {
   sock.onerror = function(e) {
     console.log(`[error] ${e.message}`);
   };
-  setInterval(sendMessage, 10); // 100Hz
+  setInterval(sendMessage, 20); // 50Hz
 }
 
 window.addEventListener('load', function() {

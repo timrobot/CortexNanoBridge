@@ -1,7 +1,7 @@
 from threading import local
 import time
 import os
-ROOT = os.path.dirname(__file__)
+ROOT = os.path.dirname(os.path.dirname(__file__))
 
 import fractions
 from typing import Tuple

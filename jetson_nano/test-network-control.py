@@ -9,6 +9,10 @@ if __name__ == "__main__":
 
   while robot.running():
     keys = nc.keyboard()
-    robot.motor[0] = (keys.KeyQ - keys.KeyA) * 63
-    robot.motor[1] = (keys.KeyW - keys.KeyS) * 63
+    robot.motor[1] = (keys.KeyS - keys.KeyW) * 63
+    robot.motor[2] = (keys.KeyS - keys.KeyW) * 63
+    robot.motor[3] = (keys.KeyQ - keys.KeyA) * 63
+    robot.motor[4] = (keys.KeyQ - keys.KeyA) * 63
     time.sleep(0.01)
+
+  nc.close()

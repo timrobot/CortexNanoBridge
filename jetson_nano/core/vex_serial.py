@@ -192,7 +192,6 @@ class VexCortex(threading.Thread):
     for c in msg:
       chk_sum ^= ord(c)
     msg = msg[:-1] + ("%02x" % chk_sum) + "]\n"
-    print(f">> {msg}")
     self._connection.write(msg.encode())
 
   def enabled(self):
