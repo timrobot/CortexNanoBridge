@@ -1,0 +1,83 @@
+{
+  "name": "robot",
+
+  "links": {
+    "chassis": {},
+
+    "mate1": {
+      "parent": "chassis",
+      "xyz": [-7.25, 5.75, 0],
+      "axis_angle": [1, 0, 0, 0]
+    },
+    "wheel_front_left": {
+      "parent": "mate1"
+    },
+
+    "mate2": {
+      "parent": "chassis",
+      "xyz": [7.25, 5.75, 0],
+      "axis_angle": [-1, 0, 0, 0]
+    },
+    "wheel_front_right": {
+      "parent": "mate2"
+    },
+
+    "mate3": {
+      "parent": "chassis",
+      "xyz": [-7.25, -5.75, 0],
+      "axis_angle": [1, 0, 0, 0]
+    },
+    "wheel_back_left": {
+      "parent": "mate3"
+    },
+
+    "mate4": {
+      "parent": "chassis",
+      "xyz": [7.25, -5.75, 0],
+      "axis_angle": [-1, 0, 0, 0]
+    },
+    "wheel_back_right": {
+      "parent": "mate4"
+    },
+
+    "tag16h5_1": {
+      "parent": "chassis",
+      "xyz": [0, 0, 4]
+    }
+  },
+
+  "joints": {
+    "joint1": {
+      "parent": "mate1",
+      "child": "wheel_front_left",
+      "type": "revolute",
+      "motor393": {
+        "ratio": 1
+      }
+    },
+    "joint2": {
+      "parent": "mate2",
+      "child": "wheel_front_right",
+      "type": "revolute",
+      "motor393": {
+        "ratio": 1
+      }
+    },
+    "joint3": {
+      "parent": "mate3",
+      "child": "wheel_back_left",
+      "type": "revolute",
+      "motor393": {
+        "ratio": 1
+      }
+    },
+    "joint4": {
+      "parent": "mate4",
+      "child": "wheel_back_right",
+      "type": "revolute",
+      "motor393": {
+        "ratio": 1
+      }
+    }
+  }
+}
