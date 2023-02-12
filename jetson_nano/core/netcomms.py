@@ -1,14 +1,14 @@
-from threading import local
 import time
 import os
 ROOT = os.path.dirname(os.path.dirname(__file__))
 
 import fractions
-from typing import Tuple
+from typing import Tuple, List
 import asyncio
 import json
 import ssl
 import websockets
+import requests
 
 from aiohttp import web, helpers, web_runner
 from av import VideoFrame
@@ -28,6 +28,9 @@ from multiprocessing import (
   RawValue,
   Value
 )
+
+from . import assembly
+from scipy.spatial.transform import Rotation
 
 ################################################################################
 ##    WebRTC
@@ -475,21 +478,16 @@ def _rpc_robot_values():
 _bounding_boxes = None
 _bblock = None
 
-def showBoundBoxes(boundingBoxes: list):
+def showBoundBoxes(boundingBoxes: List):
   global _bounding_boxes, _bblock
   _bblock.acquire()
-  while len(_bounding_boxes) > 0:
-    _bounding_boxes.pop(0)
-  for item in boundingBoxes:
-    _bounding_boxes.append(item)
+  _bounding_boxes[:] = boundingBoxes
   _bblock.release()
 
 def _rpc_bounding_boxes():
   global _bounding_boxes, _bblock
-  bboxes = []
   _bblock.acquire()
-  for item in _bounding_boxes:
-    bboxes.append(item)
+  bboxes = [box for box in _bounding_boxes]
   _bblock.release()
   return bboxes
 
@@ -499,62 +497,70 @@ _mates_lock = None
 def render3d(mates): # slow! try not to do this alot
   global _mates_list, _mates_lock
   _mates_lock.acquire()
-  # full purge
-  while len(_mates_list) > 0: # super slow, does clear() not work?
-    _mates_list.pop(0)
-  for mate in mates:
-    _mates_list.append(mate)
+  _mates_list[:] = [mate for mate in mates]
   _mates_lock.release()
 
-def mates2json(mates): # change to use xyz, quat
-  # we need to get the mates' names in order to determine if they have already
-  # been precomputed - this is a cache of the mates' positions and rotations
-  recorded_mates = {}
-  supporting_mates = {}
-  def recurse_path_tree(m):
-    if m is None:
-      return np.zeros(3, np.float), np.eye(3)
-
-    name = m.getName()
-    if (hasattr(m, "child") and \
-        (_cached := recorded_mates.get(name, None))) or \
-        (_cached := supporting_mates.get(name, None)):
-      return _cached["xyz"], _cached["rotation"]
-
-    p_xyz, p_rotation = recurse_path_tree(m.parent)
-    m.update() # keep the current value in check
-    xyz = p_rotation.dot(m.xyz) + p_xyz
-    rotation = p_rotation.dot(m.rot)
-    if not hasattr(m, "child"):
-      recorded_mates[name] = {
-        "xyz": xyz,
-        "rotation": rotation
-      }
-    else:
-      supporting_mates[name] = {
-        "xyz": xyz,
-        "rotation": rotation
-      }
-      if isinstance(m.child, list):
-        for part in m.child:
-          recurse_path_tree(part)
-    return xyz, rotation
-
-  for mate in mates:
-    recurse_path_tree(mate) # this will populate the recored mates cache
-  for _, v in recorded_mates.items():
-    v["xyz"] = v["xyz"].tolist()
-    R = np.eye(4)
-    R[:3, :3] = v["rotation"]
-    v["rotation"] = R.flatten().tolist()
-  return recorded_mates
-
-def _rpc_model():
+def _rpc_3d():
   global _mates_list, _mates_lock
   _mates_lock.acquire()
-  model = mates2json(_mates_list) # could be slow, depending on the size of the model
+  model = [assembly.getJson(mate) for mate in _mates_list]
   _mates_lock.release()
   return model
+
+_cached_endpoint = None
+def fiducialMarkers():
+  global _cached_endpoint
+  if _cached_endpoint is None:
+    with open("config.json", "r") as fp:
+      _cached_endpoint = json.load(fp)["endpoint"]
+  res = requests.get(f'{_cached_endpoint}/get_tags').json()
+  return res
+
+_cached_links = None
+_cached_assembly = None
+def position(target=None):
+  """
+  Get position of the robot
+  Args:
+      gps (bool, optional): If False, use local fiducial system. Defaults to False.
+  """
+  global _cached_links, _cached_assembly
+  if _cached_links is None:
+    if not _global_robot \
+        or "links" not in _global_robot.description \
+        or len(_global_robot.description["links"].keys()) == 0:
+      return None
+    _cached_links = _global_robot.description["links"]
+    _cached_assembly: assembly.Link = _global_robot.model
+
+  if target is None:
+    target = _cached_links.values()[0]
+
+  tag_info = fiducialMarkers()
+  if len(tag_info) == 0:
+    return None
+
+  R_tags = []
+  t_tags = []
+  decisions = []
+  for tag in tag_info:
+    full_tag_name = f"{tag[0]}_{tag[1]}"
+    if full_tag_name in _cached_links.keys():
+      Rtag, ttag = assembly.relativeTransform(_cached_assembly,
+        _cached_assembly.getChildByName(full_tag_name))
+      Rcam, tcam = Rotation.from_rotvec(tag[3], degrees=True), tag[4]
+      R_tags.append((Rcam * Rtag).as_rotvec(degrees=True))
+      t_tags.append(Rcam.apply(ttag) + tcam)
+      decisions.append(tag[2] / 100)
+
+  # take the average pose
+  weights = np.array(decisions, dtype=np.float) / np.sum(decisions)
+  Ravg = Rotation.from_rotvec(R_tags, degrees=True).mean(weights)
+  ypr = Ravg.as_euler('zyx', degrees=True)
+  weights = np.tile(weights.reshape((-1, 1)), (1, 3))
+  tavg = np.sum(weights * np.array(t_tags, dtype=np.float), axis=0)
+
+  return tavg[0], tavg[1], ypr[0]
 
 ################################################################################
 ##    Main Runnable
@@ -569,7 +575,7 @@ def _run_process(logbuf, lock, lasttime, en, cambuf, kboard, kvalues,
   RTCStreamEntity.rpc_calls["gamepad"]        = _rpc_gamepad
   RTCStreamEntity.rpc_calls["robot_values"]   = _rpc_robot_values
   RTCStreamEntity.rpc_calls["bounding_boxes"] = _rpc_bounding_boxes
-  # RTCStreamEntity.rpc_calls["model"]        = _rpc_model
+  # RTCStreamEntity.rpc_calls["model"]        = _rpc_3d
 
   global _log_buffer, _log_lock
   _log_buffer = logbuf

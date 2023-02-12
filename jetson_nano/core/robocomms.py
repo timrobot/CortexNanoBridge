@@ -1,7 +1,8 @@
-from . import vex_serial
+from . import vex_serial, assembly
 import time
 from collections import deque
 import numpy as np
+import json
 
 _entity = None
 
@@ -34,13 +35,21 @@ class State:
     self.values = {}
 
 class CortexController(vex_serial.VexCortex): # just a wrapper really with state mgmt
-  def __init__(self, path=None, baud=115200):
+  def __init__(self, path=None, baud=115200, desc=None):
     super().__init__(path=path, baud=baud)
     self._state = State(self.sensors(), 0.0)
 
     global _entity
     if not _entity:
       _entity = self
+
+    if desc:
+      with open(desc, "r") as fp:
+        self.description = json.load(fp)
+        self.model = assembly.load(self.description)
+    else:
+      self.description = {}
+      self.model = None
 
   def state(self) -> State:
     # make sure we are always up to date
