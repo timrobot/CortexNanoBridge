@@ -507,6 +507,10 @@ def _rpc_3d():
   _mates_lock.release()
   return model
 
+################################################################################
+##    Positioning System
+################################################################################
+
 _cached_endpoint = None
 def fiducialMarkers():
   global _cached_endpoint
@@ -572,9 +576,9 @@ def _run_process(logbuf, lock, lasttime, en, cambuf, kboard, kvalues,
   RTCStreamEntity.rpc_calls["disable"]        = _rpc_disable
   RTCStreamEntity.rpc_calls["enable"]         = _rpc_enable
   RTCStreamEntity.rpc_calls["keydown"]        = _rpc_keydown
-  RTCStreamEntity.rpc_calls["gamepad"]        = _rpc_gamepad
+  # RTCStreamEntity.rpc_calls["gamepad"]        = _rpc_gamepad
   RTCStreamEntity.rpc_calls["robot_values"]   = _rpc_robot_values
-  RTCStreamEntity.rpc_calls["bounding_boxes"] = _rpc_bounding_boxes
+  # RTCStreamEntity.rpc_calls["bounding_boxes"] = _rpc_bounding_boxes
   # RTCStreamEntity.rpc_calls["model"]        = _rpc_3d
 
   global _log_buffer, _log_lock
@@ -634,7 +638,7 @@ def init(robot):
   _log_lock = Lock()
 
   global _enabled
-  _enabled = RawValue(ctypes.c_bool, False)
+  _enabled = RawValue(ctypes.c_bool, True)
 
   global _camera_buffer
   _camera_buffer = DoubleFramebuffer(640, 480)

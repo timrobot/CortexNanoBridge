@@ -35,7 +35,7 @@ class Link:
   @property
   def z(self) -> float:               return self._position[2]
   @property
-  def rotation(self) -> Rotation:     return self._rotation * Rotation.identity()
+  def rotation(self) -> Rotation:     return self._rotation
   @property
   def position(self) -> np.ndarray:   return self._position.copy()
 
@@ -43,7 +43,7 @@ class Link:
     self._position = np.array(position, dtype=np.float)
 
   def setRotation(self, rotation: Rotation):
-    self._rotation = rotation * Rotation.identity()
+    self._rotation = rotation
 
   def setParent(self, parent):
     parent.addChild(self)
@@ -185,8 +185,6 @@ def relativeTransform(target: Link, origin: Link=None) -> Tuple[Rotation, np.nda
   """
   Get relative position from two Links
   """
-  Rot, tot = Rotation.identity(), np.zeros((3, 1), dtype=np.float)
-
   # find root of subtrees
   curr = target
   target_parent_path = []
@@ -206,16 +204,17 @@ def relativeTransform(target: Link, origin: Link=None) -> Tuple[Rotation, np.nda
     del target_parent_path[i]
     del origin_parent_path[j]
 
+  Rot, tot = Rotation.identity(), np.zeros((3, 1), dtype=np.float)
   for curr in target_parent_path:
-    Rcurr = curr.rotation()
+    Rcurr = curr.rotation
     Rot = Rcurr * Rot
-    tot = Rcurr.apply(tot) + curr.position()
+    tot = Rcurr.apply(tot) + curr.position
 
   Rto, tto = Rotation.identity(), np.zeros((3, 1), dtype=np.float)
   for curr in origin_parent_path:
-    Rcurr = curr.rotation()
+    Rcurr = curr.rotation
     Rto = Rcurr * Rto
-    tto = Rcurr.apply(tto) + curr.position()
+    tto = Rcurr.apply(tto) + curr.position
 
   RtoI = Rto.inv()
   t = RtoI.apply(tot - tto)
@@ -248,8 +247,8 @@ def getJson(mate: Link):
         
     elif isinstance(root, Link):
       desc["links"][root.name] = link = {
-        "xyz": list(root.position()),
-        "rpy": list(root.rotation().as_rotvec(degrees=True))
+        "xyz": list(root.position),
+        "rpy": list(root.rotation.as_rotvec(degrees=True))
       }
       if root.parent:
         link["parent"] = root.parent.name
