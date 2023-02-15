@@ -621,7 +621,7 @@ def _run_process(logbuf, lock, lasttime, en, cambuf, kboard, kvalues,
 
 _initialized = False
 
-def init(robot):
+def init(robot, frame_size=(640, 360)):
   global _initialized
   if _initialized:
     return
@@ -641,7 +641,7 @@ def init(robot):
   _enabled = RawValue(ctypes.c_bool, True)
 
   global _camera_buffer
-  _camera_buffer = DoubleFramebuffer(640, 480)
+  _camera_buffer = DoubleFramebuffer(*frame_size)
 
   global _keyboard_keys, _keyboard_values
   _keyboard_keys = KeyboardValues().json().keys()
