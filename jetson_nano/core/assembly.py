@@ -181,6 +181,44 @@ def load(description: Dict) -> Link:
         assert(root is None)
   return root
 
+def getJson(mate: Link):
+  desc = {
+    "name": "",
+    "links": {},
+    "joints": {}
+  }
+
+  def build_tree(root):
+    if isinstance(root, Joint):
+      assert(root.parent is not None)
+      assert(root.children is not None)
+
+      desc["joints"][root.name] = joint = {}
+      joint["child"] = root.children.name
+      joint["parent"] = root.parent.name
+
+      if isinstance(root, Revolute):
+        joint["type"] = "revolute"
+      elif isinstance(root, Linear):
+        joint["type"] = "linear"
+
+      build_tree(root.children)
+        
+    elif isinstance(root, Link):
+      desc["links"][root.name] = link = {
+        "xyz": list(root.position),
+        "rpy": list(root.rotation.as_rotvec(degrees=True))
+      }
+      if root.parent:
+        link["parent"] = root.parent.name
+
+      if root.children:
+        for child in root.children:
+          build_tree(child)
+
+  build_tree(mate)
+  return desc
+
 def relativeTransform(target: Link, origin: Link=None) -> Tuple[Rotation, np.ndarray]:
   """
   Get relative position from two Links
@@ -221,41 +259,3 @@ def relativeTransform(target: Link, origin: Link=None) -> Tuple[Rotation, np.nda
   R = RtoI * Rot
 
   return R, t
-
-def getJson(mate: Link):
-  desc = {
-    "name": "",
-    "links": {},
-    "joints": {}
-  }
-
-  def build_tree(root):
-    if isinstance(root, Joint):
-      assert(root.parent is not None)
-      assert(root.children is not None)
-
-      desc["joints"][root.name] = joint = {}
-      joint["child"] = root.children.name
-      joint["parent"] = root.parent.name
-
-      if isinstance(root, Revolute):
-        joint["type"] = "revolute"
-      elif isinstance(root, Linear):
-        joint["type"] = "linear"
-
-      build_tree(root.children)
-        
-    elif isinstance(root, Link):
-      desc["links"][root.name] = link = {
-        "xyz": list(root.position),
-        "rpy": list(root.rotation.as_rotvec(degrees=True))
-      }
-      if root.parent:
-        link["parent"] = root.parent.name
-
-      if root.children:
-        for child in root.children:
-          build_tree(child)
-
-  build_tree(mate)
-  return desc

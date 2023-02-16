@@ -95,6 +95,11 @@ class VexCortex(threading.Thread):
     self._motor_values = ProtectedZeroList(10)
     self._last_tx_timestamp = None
 
+  def __del__(self):
+    if self._connection:
+      self._connection.close()
+      self._connection = None
+
   def _autofind_path(self): # todo: do a more dynamic path finder using prefix
     # https://stackoverflow.com/questions/12090503/listing-available-com-ports-with-python?msclkid=bafb28c0ceb211ec97c565cfa73ea467
     if sys.platform.startswith('win'):
