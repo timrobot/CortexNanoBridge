@@ -1,4 +1,4 @@
-from core.robocomms import CortexController
+from core.device import CortexController
 from core import netcomms as nc
 
 if __name__ == "__main__":

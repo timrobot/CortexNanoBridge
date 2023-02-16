@@ -1,4 +1,4 @@
-from core.robocomms import CortexController
+from core.device import CortexController
 
 if __name__ == "__main__":
   robot = CortexController("COM4")

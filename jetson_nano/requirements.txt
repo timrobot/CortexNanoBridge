@@ -6,3 +6,5 @@ websockets
 requests
 scipy
 # pytorch
+# rplidar
+# pyrealsense2
