@@ -5,6 +5,6 @@ aiortc
 websockets
 requests
 scipy
+rplidar
+pyrealsense2
 # pytorch
-# rplidar
-# pyrealsense2
