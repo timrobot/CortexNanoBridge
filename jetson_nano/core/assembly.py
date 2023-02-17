@@ -9,7 +9,7 @@ from typing import Dict, Tuple
 class Link:
   _names = []
 
-  def __init__(self, position=np.zeros((3,)), rotation=Rotation.idenity(), name="Link"):
+  def __init__(self, position=np.zeros((3,)), rotation=Rotation.identity(), name="Link"):
     self._position = np.array(position, dtype=np.float)
     self._rotation = rotation * Rotation.identity()
     self.setName(name)
@@ -48,12 +48,12 @@ class Link:
   def setParent(self, parent):
     parent.addChild(self)
   
-  def getChildByName(self, name):
+  def getElementByName(self, name):
     for child in self.children:
       if child.name == name:
         return child
       elif isinstance(child, Link):
-        if (identified := child.getChildByName(name)) is not None:
+        if (identified := child.getElementByName(name)) is not None:
           return identified
     return None
 

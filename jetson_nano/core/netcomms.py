@@ -535,7 +535,7 @@ def position(target=None):
         or len(_global_robot.description["links"].keys()) == 0:
       return None
     _cached_links = _global_robot.description["links"]
-    _cached_assembly: assembly.Link = _global_robot.model
+    _cached_assembly = _global_robot.model
 
   if target is None:
     target = _cached_links.values()[0]
@@ -689,7 +689,7 @@ def init(robot, frame_size=(640, 360)):
 def close():
   global main_process
   main_process.terminate()
-  main_process.join(5)
+  main_process.join(3)
   if main_process.is_alive():
     main_process.kill()
   main_process.close()

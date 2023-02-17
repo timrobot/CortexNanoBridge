@@ -109,7 +109,7 @@ function createNewObject(desc) { // factory
 
 function render() {
   let all_names = [];
-  objects.keys().forEach(function(name) {
+  Object.keys(objects).forEach(function(name) {
     all_names.push(name);
     const desc = objects[name];
     let object;

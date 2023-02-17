@@ -1,21 +1,29 @@
 import numpy as np
 import threading
 import time
+import json
 from collections import deque
-from . import vex_serial
+from . import vex_serial, assembly, device
 from . import netcomms as nc
-from . import robocomms
 
 class VirtualRobot(threading.Thread):
-  def __init__(self):
+  def __init__(self, desc=None):
     super().__init__()
     self._motor_values = vex_serial.ProtectedZeroList(10)
     self._sensor_values = vex_serial.ProtectedZeroList(20)
     self.last_time = time.time()
     self._running = False
 
+    if desc:
+      with open(desc, "r") as fp:
+        self.description = json.load(fp)
+        self.model = assembly.load(self.description)
+    else:
+      self.description = {}
+      self.model = None
+
   def run(self):
-    while True:
+    while not vex_serial._kill_event.is_set():
       t = time.time()
       dt = t - self.last_time
       self.last_time = t
@@ -24,6 +32,8 @@ class VirtualRobot(threading.Thread):
 
       self.microcontroller(motors, sensors, dt) # same as map fn
       time.sleep(0.001)
+
+    self._running = False
 
   def microcontroller(self, motors, sensors, dt):
     """
@@ -67,7 +77,7 @@ class DeviceHandler:
     self._timestamp = None
 
   def __call__(self):
-    state = robocomms.CortexController._entity.state()
+    state = device.CortexController._entity.state()
     if not self._cache_on or state.timestamp != self._timestamp: # dynamic sensor storage
       self._cached_result = self.value(state)
       self._timestamp = state.timestamp
@@ -83,7 +93,7 @@ class SensorValue(DeviceHandler): # source state
   def __init__(self, port: int):
     self.port = port
 
-  def value(self, state: robocomms.State):
+  def value(self, state: device.State):
     return state.sensors[self.port] # we want to update the internal state as well
 
 class SensorEncoder(DeviceHandler):
@@ -100,7 +110,7 @@ class SensorEncoder(DeviceHandler):
     self.vel = 0.0
     self.acc = 0.0
 
-  def value(self, state: robocomms.State):
+  def value(self, state: device.State):
     value = state.sensors[self.input]
     if state.sensors[self.lower]: self.sensorRange = (value, self.sensorRange[1])
     if state.sensors[self.upper]: self.sensorRange = (self.sensorRange[0], value)
@@ -168,11 +178,11 @@ class Motor:
         max_rate = dt * self.deceleration
       self.current += np.clip(diff, -max_rate, max_rate)
 
-    robocomms.CortexController._entity.motor[self.port] = self.current
+    device.CortexController._entity.motor[self.port] = self.current
 
   def stop(self):
     self.current = 0.0
-    robocomms.CortexController._entity.motor[self.port] = 0.0
+    device.CortexController._entity.motor[self.port] = 0.0
 
 class PIDController:
   # FIXME add max acceleration/deceleration for safety
@@ -214,7 +224,7 @@ class PIDController:
       self.last_error = error
       if self.reverse: self.current = -self.current
 
-    robocomms.CortexController._entity.motor[self.port] = self.current
+    device.CortexController._entity.motor[self.port] = self.current
 
   def reset(self):
     self.sum_error = 0.0
