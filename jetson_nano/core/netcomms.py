@@ -500,7 +500,7 @@ def render3d(mates): # slow! try not to do this alot
   _mates_list[:] = [mate for mate in mates]
   _mates_lock.release()
 
-def _rpc_3d():
+def _rpc_obj3d():
   global _mates_list, _mates_lock
   _mates_lock.acquire()
   model = [assembly.getJson(mate) for mate in _mates_list]
@@ -522,6 +522,7 @@ def fiducialMarkers():
 
 _cached_links = None
 _cached_assembly = None
+_global_pose = None
 def position(target=None):
   """
   Get position of the robot
@@ -551,7 +552,7 @@ def position(target=None):
     full_tag_name = f"{tag[0]}_{tag[1]}"
     if full_tag_name in _cached_links.keys():
       Rtag, ttag = assembly.relativeTransform(_cached_assembly,
-        _cached_assembly.getChildByName(full_tag_name))
+        _cached_assembly.getElementByName(full_tag_name))
       Rcam, tcam = Rotation.from_rotvec(tag[3], degrees=True), tag[4]
       R_tags.append((Rcam * Rtag).as_rotvec(degrees=True))
       t_tags.append(Rcam.apply(ttag) + tcam)
@@ -564,13 +565,29 @@ def position(target=None):
   weights = np.tile(weights.reshape((-1, 1)), (1, 3))
   tavg = np.sum(weights * np.array(t_tags, dtype=np.float), axis=0)
 
+  global _global_pose
+  _global_pose[:] = [tavg[0], tavg[1], ypr[0]]
+
   return tavg[0], tavg[1], ypr[0]
+
+def set_pose(x, y, yaw):
+  global _global_pose
+  _global_pose.acquire()
+  _global_pose[:] = [x, y, yaw]
+  _global_pose.release()
+
+def _rpc_pose():
+  global _global_pose
+  _global_pose.acquire()
+  pose = [_global_pose[0], _global_pose[1], _global_pose[2]]
+  _global_pose.release()
+  return pose
 
 ################################################################################
 ##    Main Runnable
 ################################################################################
 
-def _run_process(logbuf, lock, lasttime, en, cambuf, kboard, kvalues,
+def _run_process(logbuf, lock, lasttime, en, cambuf, gpos, kboard, kvalues,
     gpbtns, gpaxes, bboxes, bblock, mlist, mlock, motors, sensors, rlock):
   RTCStreamEntity.rpc_calls["logs"]           = _rpc_logs
   RTCStreamEntity.rpc_calls["disable"]        = _rpc_disable
@@ -579,7 +596,8 @@ def _run_process(logbuf, lock, lasttime, en, cambuf, kboard, kvalues,
   # RTCStreamEntity.rpc_calls["gamepad"]        = _rpc_gamepad
   RTCStreamEntity.rpc_calls["robot_values"]   = _rpc_robot_values
   # RTCStreamEntity.rpc_calls["bounding_boxes"] = _rpc_bounding_boxes
-  # RTCStreamEntity.rpc_calls["model"]        = _rpc_3d
+  # RTCStreamEntity.rpc_calls["obj3d"]          = _rpc_obj3d
+  RTCStreamEntity.rpc_calls["pose"]           = _rpc_pose
 
   global _log_buffer, _log_lock
   _log_buffer = logbuf
@@ -615,6 +633,9 @@ def _run_process(logbuf, lock, lasttime, en, cambuf, kboard, kvalues,
   global _camera_buffer
   _camera_buffer = cambuf
 
+  global _global_pose
+  _global_pose = gpos
+
   global _rtc_entity
   _rtc_entity = RTCStreamEntity(_camera_buffer)
   _rtc_entity.run()
@@ -642,6 +663,9 @@ def init(robot, frame_size=(640, 360)):
 
   global _camera_buffer
   _camera_buffer = DoubleFramebuffer(*frame_size)
+
+  global _global_pose
+  _global_pose = Array(ctypes.c_double, 3)
 
   global _keyboard_keys, _keyboard_values
   _keyboard_keys = KeyboardValues().json().keys()
@@ -678,6 +702,7 @@ def init(robot, frame_size=(640, 360)):
     last_time_of_update,
     _enabled,
     _camera_buffer,
+    _global_pose,
     _keyboard_keys, _keyboard_values,
     _gamepad_buttons, _gamepad_axes,
     _bounding_boxes, _bblock,

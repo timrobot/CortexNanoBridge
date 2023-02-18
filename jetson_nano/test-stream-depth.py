@@ -12,8 +12,7 @@ if __name__ == "__main__":
 
   while robot.running():
     _, color, depth = cam.read("raw")
-    depth_as_color = cv2.applyColorMap(
-      np.sqrt(depth).astype(np.uint8), cv2.COLORMAP_HSV)
+    depth_as_color = cv2.applyColorMap(np.sqrt(depth).astype(np.uint8), cv2.COLORMAP_HSV)
     nc.imshow(depth_as_color)
 
     keys = nc.keyboard()

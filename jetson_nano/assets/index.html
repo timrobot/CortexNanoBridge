@@ -1,64 +1,81 @@
 <html>
+
 <head>
-    <meta charset="UTF-8"/>
+    <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>WebRTC session</title>
     <style>
-    button {
-        padding: 8px 16px;
-    }
+        button {
+            padding: 8px 16px;
+        }
 
-    video {
-        width: 100%;
-    }
+        video {
+            width: 100%;
+        }
 
-    .option {
-        margin-bottom: 8px;
-    }
+        .option {
+            margin-bottom: 8px;
+        }
 
-    #media {
-        width: 640px;
-        height: 360px;
-        float: left;
-        background-color: aliceblue;
-    }
+        #media {
+            float: none;
+            width: 640px;
+            height: 360px;
+            background-color: aliceblue;
+        }
 
-    #viewer {
-        float: none;
-    }
-    
-    #viz {
-        float: none;
-    }
+        #viewer {
+            float: none;
+        }
+
+        #gridmap {
+            border: solid 1px black;
+        }
+
+        #left_pane {
+            float: left;
+        }
+
+        #right_pane {
+            float: left;
+        }
     </style>
 </head>
+
 <body>
-
-<button id="start" onclick="startVideoStream()">Connect session</button>
-
-<div id="viz">
-    <div id="media">
-        <video id="video" autoplay="true" playsinline="true"></video>
+    <div>
+        <button id="start" onclick="startVideoStream()">Connect session</button>
     </div>
-    <div id="viewer"></div>
-</div>
+    <div>
+        <div id="left_pane">
+            <div id="media">
+                <video id="video" autoplay="true" playsinline="true"></video>
+            </div>
 
-<div id="bounding_box_container">
-    <ul id="bboxes"></ul>
-</div>
+            <div id="bounding_box_container">
+                <ul id="bboxes"></ul>
+            </div>
 
-<div id="robot_values">
-    <ul id="motors"></ul>
-    <ul id="sensors"></ul>
-</div>
+            <div id="robot_values">
+                <ul id="motors"></ul>
+                <ul id="sensors"></ul>
+            </div>
+        </div>
 
-<!-- <div id="gamepad_values">
-    <ul id="gamepad_buttons"></ul>
-    <ul id="gamepad_axes"></ul>
-</div> -->
+        <div id="right_pane">
+            <div id="viewer"></div>
+            <div id="gridmap"></div>
+        </div>
+    </div>
 
-<script src="https://cdn.skypack.dev/three" type="module"></script>
-<script src="client.js" type="module"></script>
+    <!-- <div id="gamepad_values">
+        <ul id="gamepad_buttons"></ul>
+        <ul id="gamepad_axes"></ul>
+    </div> -->
+
+    <script src="https://cdn.skypack.dev/three" type="module"></script>
+    <script src="client.js" type="module"></script>
 
 </body>
+
 </html>

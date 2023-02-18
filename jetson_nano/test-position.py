@@ -8,7 +8,7 @@ if __name__ == "__main__":
 
   while robot.running():
     x, y, yaw = nc.position("chassis")
-    nc.log(f"pose: {x}, {y}, {yaw}")
+    print(f"pose: {x}, {y}, {yaw}")
 
     keys = nc.keyboard()
     robot.motor[0] = (keys.KeyS - keys.KeyW) * 63

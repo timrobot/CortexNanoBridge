@@ -2,15 +2,22 @@ import {
   Scene,
   Color,
   PerspectiveCamera,
+  OrthographicCamera,
   HemisphereLight,
   DirectionalLight,
-  BoxBufferGeometry,
-  SphereBufferGeometry,
+  BoxGeometry,
+  SphereGeometry,
   MeshStandardMaterial,
   Mesh,
+  Vector3,
   Matrix4,
+  Euler,
   WebGLRenderer
 } from "https://cdn.skypack.dev/three";
+
+//////////////////////////////
+//          webrtc          //
+//////////////////////////////
 
 let pc = null;
 
@@ -72,10 +79,14 @@ window.startVideoStream = function() {
     }
   };
   document.getElementById('video').srcObject = remoteStream;
+  document.getElementById('start').style.display = 'none';
   negotiate().then(()=>{});
 };
 
-// gamepad stuff
+//////////////////////////////
+//          gamepad         //
+//////////////////////////////
+
 // let gamepadIndex;
 // window.addEventListener('gamepadconnected', (event) => {
 //   const gamepad = navigator.getGamepads()[event.gamepad.index];
@@ -91,16 +102,22 @@ window.startVideoStream = function() {
 //   }
 // });
 
-let scene, camera, renderer;
+//////////////////////////////
+//        three.js          //
+//////////////////////////////
+
+let scene, camera, renderer, top_camera, top_renderer;
+let robot_block;
 let geometries = [];
 let materials = [];
-const mate_geometry = new SphereBufferGeometry(0.5, 12, 8);
+const mate_geometry = new SphereGeometry(0.5, 12, 8);
 const mate_material = new MeshStandardMaterial({ color: 0xff0000 });
 let objects = {};
 let rendered = [];
+let robot_pose = [0, 0, 0];
 
 function createNewObject(desc) { // factory
-  if (desc.model) {
+  if (desc) {
     return new Mesh(mate_geometry, mate_material);
   } else { // mate
     return new Mesh(mate_geometry, mate_material);
@@ -108,9 +125,13 @@ function createNewObject(desc) { // factory
 }
 
 function render() {
+  robot_block.position.set(robot_pose[0], robot_pose[1], 9);
+  robot_block.setRotationFromEuler(
+    new Euler(0, 0, robot_pose[2] * Math.PI / 180), 'ZYX');
+
   let all_names = [];
   Object.keys(objects).forEach(function(name) {
-    all_names.push(name);
+    all_names.push(name);  
     const desc = objects[name];
     let object;
     if (rendered.indexOf(name) === -1) {
@@ -136,11 +157,12 @@ function render() {
     }
   }
   renderer.render(scene, camera);
+  top_renderer.render(scene, top_camera);
   requestAnimationFrame(render);
 }
 
-function constructViewer() {
-  const container = document.getElementById("viewer");
+function initializeRenderer() {
+  const viewer = document.getElementById("viewer");
   const width = 640;
   const height = 480;
   scene = new Scene();
@@ -152,30 +174,53 @@ function constructViewer() {
   const dirlight = new DirectionalLight('white', 8);
   scene.add(dirlight);
   
-  const fov = 75;
+  const fov = 90;
   const aspect = width / height;
   const near = 0.1;
-  const far = 100;
+  const far = 10000;
   camera = new PerspectiveCamera(fov, aspect, near, far);
-  camera.position.set(0, -8, 4);
+  camera.position.set(0, -80, 54);//new Vector3(0, -80, 54));
   camera.lookAt(0, 0, 0);
+  scene.add(camera);
 
   renderer = new WebGLRenderer();
   renderer.setSize(width, height);
   renderer.setPixelRatio(window.devicePixelRatio);
-  container.append(renderer.domElement);
+  viewer.append(renderer.domElement);
 
-  const ground_geometry = new BoxBufferGeometry(1000, 1000, 0.01);
+  const map_size = 480;
+  top_camera = new OrthographicCamera(
+    -map_size/2, map_size/2, map_size/2, -map_size/2, near, far);
+  top_camera.position.set(0, 0, 60);//new Vector3(0, 0, 60));
+  top_camera.lookAt(0, 0, 0);
+  scene.add(top_camera);
+
+  const gridmap = document.getElementById("gridmap");
+  top_renderer = new WebGLRenderer();
+  top_renderer.setSize(map_size, map_size);
+  top_renderer.setPixelRatio(1.0);
+  gridmap.append(top_renderer.domElement);
+
+  const ground_geometry = new BoxGeometry(1000, 1000, 0.01);
   const ground_material = new MeshStandardMaterial({ color: 0xFFE0B2 });
   const ground = new Mesh(ground_geometry, ground_material);
-  ground.position.set(0, 0, -9);
+  ground.position.set(0, 0, 0);//new Vector3(0, 0, 0));
   scene.add(ground);
 
+  const robot_geometry = new BoxGeometry(18, 18, 18);
+  const robot_material = new MeshStandardMaterial({ color: 0x804040 });
+  robot_block = new Mesh(robot_geometry, robot_material);
+  robot_block.position.set(0, 0, 9);//new Vector3(0, 0, 9));
+  scene.add(robot_block);
+
   renderer.render(scene, camera);
+  top_renderer.render(scene, top_camera);
   requestAnimationFrame(render);
 }
 
-// websockets
+//////////////////////////////
+//       websockets         //
+//////////////////////////////
 let sock = null;
 let sock_connected = false;
 let keysdown = [];
@@ -211,11 +256,16 @@ function onMessage(req) {
     renderList("motors", "motor", j.robot_values.motors);
     renderList("sensors", "sensor", j.robot_values.sensors);
   }
-  if (j.model) {
-    objects = j.model;
+  if (j.obj3d) {
+    objects = j.obj3d;
   }
   if (j.bounding_boxes) {
     renderBoundingBoxes(j.bounding_boxes);
+  }
+  if (j.pose) {
+    robot_pose[0] = j.pose[0];
+    robot_pose[1] = j.pose[1];
+    robot_pose[2] = j.pose[2];
   }
 }
 
@@ -224,8 +274,9 @@ function sendMessage() {
     let msg = {
       "logs": null,
       "robot_values": null,
-      "model": null,
-      "bounding_boxes": null
+      "obj3d": null,
+      "bounding_boxes": null,
+      "pose": null
     };
     // if (gamepadIndex !== undefined) {
     //   const gamepad = navigator.getGamepads()[gamepadIndex];
@@ -269,7 +320,7 @@ function constructSocket(ip) {
 }
 
 window.addEventListener('load', function() {
-  constructViewer();
+  initializeRenderer();
   // setTimeout(window.startVideoStream, 5000);
 });
 

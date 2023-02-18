@@ -51,32 +51,32 @@
       "parent": "mate1",
       "child": "wheel_front_left",
       "type": "revolute",
-      "motor393": {
-        "ratio": 1
+      "motion": {
+        "parent": "port10"
       }
     },
     "joint2": {
       "parent": "mate2",
       "child": "wheel_front_right",
       "type": "revolute",
-      "motor393": {
-        "ratio": 1
+      "motion": {
+        "parent": "port1"
       }
     },
     "joint3": {
       "parent": "mate3",
       "child": "wheel_back_left",
       "type": "revolute",
-      "motor393": {
-        "ratio": 1
+      "motion": {
+        "parent": "port10"
       }
     },
     "joint4": {
       "parent": "mate4",
       "child": "wheel_back_right",
       "type": "revolute",
-      "motor393": {
-        "ratio": 1
+      "motion": {
+        "parent": "port1"
       }
     }
   }
