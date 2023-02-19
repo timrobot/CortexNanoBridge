@@ -1,9 +1,8 @@
-from core.device import CortexController
+from core.device import Robot
 from core import netcomms as nc
 
 if __name__ == "__main__":
-  robot = CortexController("COM4", desc="robot.json")
-  robot.connect()
+  robot = Robot("COM4", model="robot.json")
   nc.init(robot)
 
   while robot.running():

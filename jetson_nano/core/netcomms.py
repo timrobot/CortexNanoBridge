@@ -467,8 +467,8 @@ _robot_lock = None
 def _rpc_robot_values():
   global _motors, _sensors, _robot_lock
   _robot_lock.acquire()
-  motors = [i for i in _motors]
-  sensors = [i for i in _sensors]
+  motors = _motors[:] #[i for i in _motors]
+  sensors = _sensors[:] #[i for i in _sensors]
   _robot_lock.release()
   return {
     "motors": motors,
@@ -487,7 +487,7 @@ def showBoundBoxes(boundingBoxes: List):
 def _rpc_bounding_boxes():
   global _bounding_boxes, _bblock
   _bblock.acquire()
-  bboxes = [box for box in _bounding_boxes]
+  bboxes = _bounding_boxes[:]
   _bblock.release()
   return bboxes
 
@@ -497,7 +497,7 @@ _mates_lock = None
 def render3d(mates): # slow! try not to do this alot
   global _mates_list, _mates_lock
   _mates_lock.acquire()
-  _mates_list[:] = [mate for mate in mates]
+  _mates_list[:] = mates
   _mates_lock.release()
 
 def _rpc_obj3d():
@@ -559,11 +559,11 @@ def position(target=None):
       decisions.append(tag[2] / 100)
 
   # take the average pose
-  weights = np.array(decisions, dtype=np.float) / np.sum(decisions)
+  weights = np.array(decisions, dtype=np.double) / np.sum(decisions)
   Ravg = Rotation.from_rotvec(R_tags, degrees=True).mean(weights)
   ypr = Ravg.as_euler('zyx', degrees=True)
   weights = np.tile(weights.reshape((-1, 1)), (1, 3))
-  tavg = np.sum(weights * np.array(t_tags, dtype=np.float), axis=0)
+  tavg = np.sum(weights * np.array(t_tags, dtype=np.double), axis=0)
 
   global _global_pose
   _global_pose[:] = [tavg[0], tavg[1], ypr[0]]
@@ -672,8 +672,8 @@ def init(robot, frame_size=(640, 360)):
   _keyboard_values = Array(ctypes.c_int, len(_keyboard_keys))
 
   global _gamepad_buttons, _gamepad_axes
-  _gamepad_buttons = Array(ctypes.c_float, 17)
-  _gamepad_axes = Array(ctypes.c_float, 4)
+  _gamepad_buttons = Array(ctypes.c_double, 17)
+  _gamepad_axes = Array(ctypes.c_double, 4)
 
   global _bounding_boxes, _bblock
   _bounding_boxes = main_manager.list()

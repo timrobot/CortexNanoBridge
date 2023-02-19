@@ -1,11 +1,10 @@
-from core.device import CortexController, RealsenseCamera
+from core.device import Robot, RealsenseCamera
 from core import netcomms as nc
 import numpy as np
 import cv2
 
 if __name__ == "__main__":
-  robot = CortexController("COM4")
-  robot.connect()
+  robot = Robot("COM4")
   nc.init(robot)
 
   cam = RealsenseCamera(640, 360)

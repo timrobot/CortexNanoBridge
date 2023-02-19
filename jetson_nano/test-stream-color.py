@@ -1,9 +1,8 @@
-from core.device import CortexController, RealsenseCamera
+from core.device import Robot, RealsenseCamera
 from core import netcomms as nc
 
 if __name__ == "__main__":
-  robot = CortexController("COM4")
-  robot.connect()
+  robot = Robot("COM4")
   nc.init(robot)
 
   # note: any camera can be used here, realsense is being used as an example

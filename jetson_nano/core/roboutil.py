@@ -7,15 +7,15 @@ from . import vex_serial, assembly, device
 from . import netcomms as nc
 
 class VirtualRobot(threading.Thread):
-  def __init__(self, desc=None):
+  def __init__(self, model=None):
     super().__init__()
-    self._motor_values = vex_serial.ProtectedZeroList(10)
-    self._sensor_values = vex_serial.ProtectedZeroList(20)
+    self._motor_values = vex_serial.IndexableArray(10)
+    self._sensor_values = vex_serial.IndexableArray(20)
     self.last_time = time.time()
     self._running = False
 
-    if desc:
-      with open(desc, "r") as fp:
+    if model:
+      with open(model, "r") as fp:
         self.description = json.load(fp)
         self.model = assembly.load(self.description)
     else:

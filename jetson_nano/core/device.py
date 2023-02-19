@@ -1,5 +1,5 @@
-import time
 import threading
+import signal
 import ctypes
 import numpy as np
 import json
@@ -30,44 +30,21 @@ PORT18 = 17
 PORT19 = 18
 PORT20 = 19
 
-class State:
-  def __init__(self, sensorValues, timestamp=None):
-    self.sensors = sensorValues
-    self.timestamp = timestamp if timestamp else time.time()
-    self.values = {}
-
-class CortexController(vex_serial.VexCortex): # just a wrapper really with state mgmt
+class Robot(vex_serial.VexCortex): # just a wrapper really with state mgmt
   _entity = None
 
-  def __init__(self, path=None, baud=115200, desc=None):
+  def __init__(self, path=None, baud=115200, model=None):
     super().__init__(path=path, baud=baud)
-    self._state = State(self.sensors(), 0.0)
+    if not Robot._entity:
+      Robot._entity = self
 
-    if not CortexController._entity:
-      CortexController._entity = self
-
-    if desc:
-      with open(desc, "r") as fp:
+    if model:
+      with open(model, "r") as fp:
         self.description = json.load(fp)
         self.model = assembly.load(self.description)
     else:
       self.description = {}
       self.model = None
-
-  def state(self) -> State:
-    # make sure we are always up to date
-    updateable = False
-    if self._last_rx_timestamp:
-      updateable = not self._state.timestamp or \
-        self._state.timestamp < self.timestamp() # yes, we are calling "twice" (as shown below)
-
-    if updateable:
-      self._rx_timestamp_lock.acquire()
-      state = State(self.sensors(), self._last_rx_timestamp)
-      self._rx_timestamp_lock.release()
-      self._state = state
-
-    return self._state
 
   def obs(self) -> np.ndarray:
     return None
@@ -75,16 +52,13 @@ class CortexController(vex_serial.VexCortex): # just a wrapper really with state
   def act(self, _: np.ndarray):
     pass
 
-  def connect(self):
-    self.start()
+_kill_event = threading.Event()
+def handle_signal(sig, frame):
+  _kill_event.set()
+  if Robot._entity:
+    Robot._entity._keep_running.value = False
+signal.signal(signal.SIGINT, handle_signal)
 
-  def disconnect(self):
-    self.close()
-    self.join()
-
-  def running(self):
-    return self.is_alive()
-  
 def _run_rplidar(path, full_scan, keep_running, lock):
   scan_buf = []
   device = rplidar.RPLidar(path)
