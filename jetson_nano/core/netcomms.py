@@ -566,20 +566,20 @@ def position(target=None):
   tavg = np.sum(weights * np.array(t_tags, dtype=np.double), axis=0)
 
   global _global_pose
-  _global_pose[:] = [tavg[0], tavg[1], ypr[0]]
+  _global_pose[:] = [tavg[0], tavg[1], tavg[2], ypr[0], ypr[1], ypr[2]]
 
   return tavg[0], tavg[1], ypr[0]
 
 def set_pose(x, y, yaw):
   global _global_pose
   _global_pose.acquire()
-  _global_pose[:] = [x, y, yaw]
+  _global_pose[:] = [x, y, 9, 0, 0, yaw]
   _global_pose.release()
 
 def _rpc_pose():
   global _global_pose
   _global_pose.acquire()
-  pose = [_global_pose[0], _global_pose[1], _global_pose[2]]
+  pose = _global_pose[:]
   _global_pose.release()
   return pose
 
@@ -665,7 +665,7 @@ def init(robot, frame_size=(640, 360)):
   _camera_buffer = DoubleFramebuffer(*frame_size)
 
   global _global_pose
-  _global_pose = Array(ctypes.c_double, 3)
+  _global_pose = Array(ctypes.c_double, 6)
 
   global _keyboard_keys, _keyboard_values
   _keyboard_keys = KeyboardValues().json().keys()

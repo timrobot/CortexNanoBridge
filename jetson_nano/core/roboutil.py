@@ -1,18 +1,26 @@
 import numpy as np
-import threading
 import time
 import json
+from multiprocessing import RawValue, Process
+from ctypes import c_bool
 from collections import deque
 from . import vex_serial, assembly, device
-from . import netcomms as nc
 
-class VirtualRobot(threading.Thread):
-  def __init__(self, model=None):
-    super().__init__()
+def _run_virtual_robot(robot):
+  last_time = time.time()
+  while robot._keep_running.value:
+    t = time.time()
+    dt = t - last_time
+    last_time = t
+
+    robot.microcontroller(robot._motor_values, robot._sensor_values, dt) # same as map fn
+    time.sleep(0.001)
+
+class VirtualRobot:
+  def __init__(self, model=None, microprocessor_loop=None):
     self._motor_values = vex_serial.IndexableArray(10)
     self._sensor_values = vex_serial.IndexableArray(20)
-    self.last_time = time.time()
-    self._running = False
+    self._keep_running = RawValue(c_bool, True)
 
     if model:
       with open(model, "r") as fp:
@@ -22,37 +30,15 @@ class VirtualRobot(threading.Thread):
       self.description = {}
       self.model = None
 
-  def run(self):
-    while not vex_serial._kill_event.is_set():
-      t = time.time()
-      dt = t - self.last_time
-      self.last_time = t
-      motors = self.motors()
-      sensors = self._sensor_values
+    device.Robot._entity = self # override entity
 
-      self.microcontroller(motors, sensors, dt) # same as map fn
-      time.sleep(0.001)
-
-    self._running = False
-
-  def microcontroller(self, motors, sensors, dt):
-    """
-    Use this function in order to simulate what might happen on the
-    microcontroller (eg. sensor value changes)
-    It can be as simple as direct sensor manipulation or as complicated as a
-    simulator
-    """
-    pass
-
-  def connect(self):
-    self._running = True
-    nc.init(self)
-    self.start()
+    self._worker = Process(target=_run_virtual_robot, args=(self,))
+    self._worker.start()
 
   def running(self):
-    return self._running
-
-  def onUpdate(self, handler):
+    return self._keep_running.value
+  
+  def microcontroller(self, motors, sensors, dt):
     pass
 
   @property
@@ -68,38 +54,39 @@ class VirtualRobot(threading.Thread):
 
   def sensors(self):
     return self._sensor_values.clone()
-    
+  
 class DeviceHandler:
   def __init__(self, cacheResult=True):
     self._cached_readings = None
-    self._cached_result = 0.0
+    self._cached_result = np.zeros((10,), dtype=np.double)
     self._cache_on = cacheResult
     self._timestamp = None
 
   def __call__(self):
-    state = device.CortexController._entity.state()
-    if not self._cache_on or state.timestamp != self._timestamp: # dynamic sensor storage
-      self._cached_result = self.value(state)
-      self._timestamp = state.timestamp
+    timestamp = device.Robot._entity.timestamp()
+    if not self._cache_on or timestamp != self._timestamp: # dynamic sensor storage
+      self._cached_result = device.Robot._entity.sensors()
+      self._timestamp = timestamp
     return self._cached_result
 
-  def value(self, _): # abstract function
+  def value(self, other_sensors=None): # abstract function
     return self._cached_result
 
   def time(self):
     return self._timestamp
 
-class SensorValue(DeviceHandler): # source state
+class SensorValue(DeviceHandler):
   def __init__(self, port: int):
     self.port = port
 
-  def value(self, state: device.State):
-    return state.sensors[self.port] # we want to update the internal state as well
+  def value(self, other_sensors=None):
+    return device.Robot._entity.sensor[self.port]
 
 class SensorEncoder(DeviceHandler):
   def __init__(self, outputRange: tuple, input: int,
       lower: int=None, upper: int=None, sensorRange: tuple=(-1e6, 1e6),
-      memoryLength=2):
+      memoryLength=3):
+    super().__init__(True)
     self.outputRange = outputRange
     self.input = input
     self.lower = lower
@@ -110,10 +97,15 @@ class SensorEncoder(DeviceHandler):
     self.vel = 0.0
     self.acc = 0.0
 
-  def value(self, state: device.State):
-    value = state.sensors[self.input]
-    if state.sensors[self.lower]: self.sensorRange = (value, self.sensorRange[1])
-    if state.sensors[self.upper]: self.sensorRange = (self.sensorRange[0], value)
+  def value(self, other_sensors=None):
+    if len(self.memory) > 0 and \
+        self.memory[-1][1] == device.Robot._entity.timestamp():
+      return self.memory[-1][1]
+
+    sensors = device.Robot._entity.sensors()
+    value = sensors[self.input]
+    if sensors[self.lower]: self.sensorRange = (value, self.sensorRange[1])
+    if sensors[self.upper]: self.sensorRange = (self.sensorRange[0], value)
 
     v0, v1 = self.outputRange
     s0, s1 = self.sensorRange
@@ -121,32 +113,40 @@ class SensorEncoder(DeviceHandler):
     if s0 == s1: return None
     value = float(value - s0) / float(s1 - s0) * float(v1 - v0) + v0
 
-    self.memory.append((value, state.timestamp))
+    self.memory.append((value, device.Robot._entity.timestamp()))
     return value
 
   def velocity(self):
+    if len(self.memory) == 0 or \
+        self.memory[-1][1] != device.Robot._entity.timestamp():
+      self.value()
+    
     vel = 0.0
     if len(self.memory) >= 2:
       ratio = 1.0 if len(self.memory) == 2 else 0.9
       for i in range(len(self.memory)-1):
-        a1, t1 = self.memory[i+1]
-        a0, t0 = self.memory[i]
+        p0, t0 = self.memory[i]
+        p1, t1 = self.memory[i+1]
         if t1 > t0:
-          vel = (1.0 - ratio) * vel + ratio * (a1 - a0) / (t1 - t0)
+          vel = (1.0 - ratio) * vel + ratio * (p1 - p0) / (t1 - t0)
     self.vel = vel
     return vel
 
   def acceleration(self):
+    if len(self.memory) == 0 or \
+        self.memory[-1][1] != device.Robot._entity.timestamp():
+      self.value()
+
     acc = 0.0
     if len(self.memory) >= 3:
       ratio = 1.0 if len(self.memory) == 3 else 0.9
       for i in range(len(self.memory)-2):
-        a2, t2 = self.memory[i+2]
-        a1, t1 = self.memory[i+1]
-        a0, t0 = self.memory[i]
+        p0, t0 = self.memory[i]
+        p1, t1 = self.memory[i+1]
+        p2, t2 = self.memory[i+2]
         if t1 > t0 and t2 > t1:
-          v1 = (a1 - a0) / (t1 - t0)
-          v2 = (a2 - a1) / (t2 - t1)
+          v1 = (p1 - p0) / (t1 - t0)
+          v2 = (p2 - p1) / (t2 - t1)
           acc = (1.0 - ratio) * acc + ratio * (v2 - v1) / (t2 - t1)
     self.acc = acc
     return acc
@@ -157,32 +157,32 @@ class Motor:
     self.acceleration = max_acceleration
     self.deceleration = max_deceleration if max_deceleration != 0.0 else max_acceleration
 
-    self.current = 0.0
-    self._timestamp = None
+    self.value = 0.0
+    self._timestamp = 0.0
 
   def set(self, value):
     if self.acceleration == 0.0:
-      self.current = value
+      self.value = value
     else:
       t = time.time()
-      if self._timestamp is None:
+      if self._timestamp == 0.0:
         self._timestamp = t
       dt = t - self._timestamp
       if dt > 1.0: dt = 1.0 # more than 1 second has passed >_<
       self._timestamp = t
 
-      diff = value - self.current
+      diff = value - self.value
       if (diff < 0 and value < 0) or (diff >= 0 and value >= 0):
         max_rate = dt * self.acceleration
       else:
         max_rate = dt * self.deceleration
-      self.current += np.clip(diff, -max_rate, max_rate)
+      self.value += np.clip(diff, -max_rate, max_rate)
 
-    device.CortexController._entity.motor[self.port] = self.current
+    device.Robot._entity.motor[self.port] = self.value
 
   def stop(self):
-    self.current = 0.0
-    device.CortexController._entity.motor[self.port] = 0.0
+    self.value = 0.0
+    device.Robot._entity.motor[self.port] = 0.0
 
 class PIDController:
   # FIXME add max acceleration/deceleration for safety
@@ -200,7 +200,7 @@ class PIDController:
     self.sum_error = 0.0
     self.last_error = 0.0
     self._timestamp = None
-    self.current = 0.0
+    self.value = 0.0
 
   def set(self, value):
     if not self._timestamp:
@@ -216,21 +216,21 @@ class PIDController:
         self.sumLimits[0], self.sumLimits[1])
       d_error = (error - self.last_error) / dt
 
-      self.current = np.clip(
+      self.value = np.clip(
         self.kp * error + \
         self.ki * self.sum_error + \
         self.kd * d_error, -127, 127)
 
       self.last_error = error
-      if self.reverse: self.current = -self.current
+      if self.reverse: self.value = -self.value
 
-    device.CortexController._entity.motor[self.port] = self.current
+    device.Robot._entity.motor[self.port] = self.value
 
   def reset(self):
     self.sum_error = 0.0
     self.last_error = 0.0
     self._timestamp = None
-    self.current = 0.0
+    self.value = 0.0
 
 class StepRampValue:
   def __init__(self, start_value=0.0, range=(0.0, 1.0), ratio=1.0):

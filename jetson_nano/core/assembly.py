@@ -122,27 +122,37 @@ class Linear(Joint):
 ## Util
 ################################################################################
 
+def parseRotation(desc) -> Rotation:
+  if "rpy" in desc:
+    return Rotation.from_rotvec(desc["rpy"], degrees=True)
+  elif "axis_angle" in desc:
+    # http://www.euclideanspace.com/maths/geometry/rotations/conversions/angleToQuaternion/index.htm
+    axis = np.array(desc["axis_angle"][:3], dtype=np.float)
+    angle = np.radians(float(desc["axis_angle"][3]))
+    w = np.cos(angle / 2)
+    s = np.sqrt(1 - w * w)
+    if s > 1e-6: axis = axis * s
+    return Rotation.from_quat(np.array([axis[0], axis[1], axis[2], w], dtype=np.float))
+  else:
+    return Rotation.identity()
+
 def load(description: Dict) -> Link:
+  root = Link(position=description.get("position", (0, 0, 0)),
+              rotation=parseRotation(description),
+              name=description.get("name", "robot"))
+  
   links = {}
   for link_name, link in description["links"].items():
     links[link_name] = L = Link(name=link_name)
     if "xyz" in link:
       L.setPosition(link["xyz"])
-    if "rpy" in link:
-      L.setRotation(Rotation.from_rotvec(link["rpy"], degrees=True))
-    elif "axis_angle" in link:
-      # http://www.euclideanspace.com/maths/geometry/rotations/conversions/angleToQuaternion/index.htm
-      axis = np.array(link["axis_angle"][:3], dtype=np.float)
-      angle = np.radians(float(link["axis_angle"][3]))
-      w = np.cos(angle / 2)
-      s = np.sqrt(1 - w * w)
-      if s > 1e-6: axis = axis * s
-      L.setRotation(Rotation.from_quat(np.array([axis[0], axis[1], axis[2], w], dtype=np.float)))
 
   for link_name, link in description["links"].items():
+    L = links[link_name]
     if "parent" in link:
-      L = links[link_name]
       links[link["parent"]].add_child(L)
+    else:
+      root.addChild(L)
 
   joints = {}
   for joint_name, joint in description["joints"].items():
@@ -170,15 +180,6 @@ def load(description: Dict) -> Link:
 
     J.addChild(child)
     J.setParent(parent)
-
-  root = None
-  for link_name, link in links.items():
-    if link.parent is None:
-      if root is None:
-        root = link
-      else:
-        print("Error: there can only be one link without a parent")
-        assert(root is None)
   return root
 
 def getJson(mate: Link):

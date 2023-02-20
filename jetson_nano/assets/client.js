@@ -114,7 +114,7 @@ const mate_geometry = new SphereGeometry(0.5, 12, 8);
 const mate_material = new MeshStandardMaterial({ color: 0xff0000 });
 let objects = {};
 let rendered = [];
-let robot_pose = [0, 0, 0];
+let robot_pose = [0, 0, 0, 0, 0, 0];
 
 function createNewObject(desc) { // factory
   if (desc) {
@@ -127,7 +127,7 @@ function createNewObject(desc) { // factory
 function render() {
   robot_block.position.set(robot_pose[0], robot_pose[1], 9);
   robot_block.setRotationFromEuler(
-    new Euler(0, 0, robot_pose[2] * Math.PI / 180), 'ZYX');
+    new Euler(0, 0, robot_pose[5] * Math.PI / 180), 'ZYX');
 
   let all_names = [];
   Object.keys(objects).forEach(function(name) {
@@ -263,9 +263,15 @@ function onMessage(req) {
     renderBoundingBoxes(j.bounding_boxes);
   }
   if (j.pose) {
-    robot_pose[0] = j.pose[0];
-    robot_pose[1] = j.pose[1];
-    robot_pose[2] = j.pose[2];
+    for (let i = 0; i < 6; i++) {
+      robot_pose[i] = j.pose[i];
+    }
+    document.getElementById("pose_x").innerText = robot_pose[0];
+    document.getElementById("pose_y").innerText = robot_pose[1];
+    document.getElementById("pose_z").innerText = robot_pose[2];
+    document.getElementById("pose_roll").innerText = robot_pose[3];
+    document.getElementById("pose_pitch").innerText = robot_pose[4];
+    document.getElementById("pose_yaw").innerText = robot_pose[5];
   }
 }
 

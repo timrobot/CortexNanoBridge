@@ -148,7 +148,14 @@ def _serial_worker(path, baud, motors, sensors, enabled, readtime, keep_running)
 
 class VexCortex:
   def __init__(self, path=None, baud=115200):
-    super().__init__()
+    self.baud = baud
+    self._enabled = Value(c_bool, True)
+    self._keep_running = RawValue(c_bool, True)
+
+    self._sensor_values = IndexableArray(20)
+    self._last_rx_time = Value(c_double, 0.0)
+    self._motor_values = IndexableArray(10)
+    self._worker = None
 
     self.path = path
     if self.path:
@@ -161,14 +168,6 @@ class VexCortex:
       self._autofind_path()
       if not self.path:
         raise EnvironmentError(f"Could not find any path")
-
-    self.baud = baud
-    self._enabled = Value(c_bool, True)
-    self._keep_running = RawValue(c_bool, True)
-
-    self._sensor_values = IndexableArray(20)
-    self._last_rx_time = Value(c_double, 0.0)
-    self._motor_values = IndexableArray(10)
 
     self._worker = Process(target=_serial_worker,args=(
       self.path, self.baud, self._motor_values, self._sensor_values,
