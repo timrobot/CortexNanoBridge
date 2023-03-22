@@ -4,10 +4,11 @@ import ctypes
 import numpy as np
 import json
 import multiprocessing
+import os
 import rplidar
 import pyrealsense2 as rs
 from typing import Tuple
-from . import vex_serial, assembly
+from . import vex_serial, assembly, overlord
 
 PORT1  =  0
 PORT2  =  1
@@ -33,24 +34,29 @@ PORT20 = 19
 class Robot(vex_serial.VexCortex): # just a wrapper really with state mgmt
   _entity = None
 
-  def __init__(self, path=None, baud=115200, model=None):
+  def __init__(self, model="", path=None, baud=115200):
     super().__init__(path=path, baud=baud)
     if not Robot._entity:
       Robot._entity = self
 
+    self.description = {}
+    self.model = None
     if model:
-      with open(model, "r") as fp:
-        self.description = json.load(fp)
-        self.model = assembly.load(self.description)
-    else:
-      self.description = {}
-      self.model = None
+      overlord.set_name(model)
+      if os.path.exists(model + ".json"):
+        with open(model, "r") as fp:
+          self.description = json.load(fp)
+          self.model = assembly.load(self.description)
 
   def obs(self) -> np.ndarray:
     return None
 
   def act(self, _: np.ndarray):
     pass
+
+  def running(self):
+    overlord.heartbeat()
+    return super().running()
 
 _kill_event = threading.Event()
 def handle_signal(sig, frame):

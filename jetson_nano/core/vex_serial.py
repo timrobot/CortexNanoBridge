@@ -19,8 +19,7 @@ class IndexableArray:
 
   def set(self, arr):
     self._data.acquire()
-    for i, v in enumerate(arr):
-      self._data[i] = v
+    self._data[:] = arr
     self._data.release()
 
   def __iter__(self):
@@ -43,10 +42,9 @@ class IndexableArray:
   def __str__(self):
     return str(self._data[:])
 
-RXMAX = 200
-CMD_CONTROL_values = 'M'
-CMD_STATUS_SENSOR_VALUES = 'S'
-CMD_STATUS_DEBUG         = 'I'
+CMD_CONTROL_MOTOR_VALUES  = 'M'
+CMD_STATUS_SENSOR_VALUES  = 'S'
+CMD_STATUS_DEBUG          = 'I'
 MLIMIT = 127
 
 def _decode_message(msg):
@@ -160,7 +158,7 @@ class VexCortex:
     self.path = path
     if self.path:
       try:
-        s = serial.Serial(path, baud)
+        s = serial.Serial(self.path, self.baud)
         s.close()
       except (OSError, serial.SerialException):
         raise EnvironmentError(f"Could not find specified path: {self.path}")
@@ -199,10 +197,11 @@ class VexCortex:
 
     for path in paths:
       try:
+        s = serial.Serial(path, self.baud)
+        s.close()
         self.path = path
         break # once it has found one, we are good
       except (OSError, serial.SerialException):
-        self._connection = None
         self.path = None
 
   def enabled(self):
