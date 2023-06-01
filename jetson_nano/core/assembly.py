@@ -122,6 +122,18 @@ class Linear(Joint):
 ## Util
 ################################################################################
 
+from stl import mesh
+import open3d as o3d
+import numpy as np
+
+def load_pts(fname="Tennis Ball.stl"): # mm is unit -> 2.5mm voxel size -> meters convert
+  m = mesh.Mesh.from_file(fname)
+  vertices = m.points.reshape((-1, 3)) / 1000.
+  pcd = o3d.geometry.PointCloud()
+  pcd.points = o3d.utility.Vector3dVector(vertices)
+  pcd.colors = o3d.utility.Vector3dVector(np.zeros_like(vertices))
+  return pcd
+
 def parseRotation(desc) -> Rotation:
   if "rpy" in desc:
     return Rotation.from_rotvec(desc["rpy"], degrees=True)

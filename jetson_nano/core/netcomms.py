@@ -30,6 +30,8 @@ from multiprocessing import (
 )
 
 from . import assembly
+from .device import Robot
+from . import overlord
 from scipy.spatial.transform import Rotation
 
 ################################################################################
@@ -511,17 +513,11 @@ def _rpc_obj3d():
 ##    Positioning System
 ################################################################################
 
-_cached_endpoint = None
 def fiducialMarkers():
-  global _cached_endpoint
-  if _cached_endpoint is None:
-    with open("config.json", "r") as fp:
-      _cached_endpoint = json.load(fp)["endpoint"]
-  res = requests.get(f'{_cached_endpoint}/get_tags').json()
+  res = requests.get(f'http://{overlord.endpoint}/get-poses').json()
   return res
 
 _cached_links = None
-_cached_assembly = None
 _global_pose = None
 def position(target=None):
   """
@@ -529,17 +525,17 @@ def position(target=None):
   Args:
       gps (bool, optional): If False, use local fiducial system. Defaults to False.
   """
-  global _cached_links, _cached_assembly
+  global _cached_links
+  robot: Robot = _global_robot
   if _cached_links is None:
-    if not _global_robot \
-        or "links" not in _global_robot.description \
-        or len(_global_robot.description["links"].keys()) == 0:
+    if not robot \
+        or "links" not in robot.description \
+        or len(robot.description["links"].keys()) == 0:
       return None
-    _cached_links = _global_robot.description["links"]
-    _cached_assembly = _global_robot.model
+    _cached_links = robot.description["links"]
 
   if target is None:
-    target = _cached_links.values()[0]
+    target = robot.description["name"]
 
   tag_info = fiducialMarkers()
   if len(tag_info) == 0:
@@ -551,8 +547,8 @@ def position(target=None):
   for tag in tag_info:
     full_tag_name = f"{tag[0]}_{tag[1]}"
     if full_tag_name in _cached_links.keys():
-      Rtag, ttag = assembly.relativeTransform(_cached_assembly,
-        _cached_assembly.getElementByName(full_tag_name))
+      Rtag, ttag = assembly.relativeTransform(robot.model,
+        robot.model.getElementByName(full_tag_name))
       Rcam, tcam = Rotation.from_rotvec(tag[3], degrees=True), tag[4]
       R_tags.append((Rcam * Rtag).as_rotvec(degrees=True))
       t_tags.append(Rcam.apply(ttag) + tcam)
