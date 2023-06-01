@@ -156,7 +156,9 @@ class RealsenseCamera:
     depth_sensor = profile.get_device().first_depth_sensor()
     self.depth_scale = depth_sensor.get_depth_scale()
 
-  def read(self, unit='inches') -> Tuple[bool, np.ndarray, np.ndarray]:
+    self.align = rs.align(rs.stream.color)
+
+  def read(self) -> Tuple[bool, np.ndarray, np.ndarray]:
     """
     Grab frames from the realsense camera
 
@@ -169,14 +171,12 @@ class RealsenseCamera:
     if self.pipeline:
       try:
         frames = self.pipeline.wait_for_frames()
-        color_frame = frames.get_color_frame()
-        depth_frame = frames.get_depth_frame()
+        aligned_frames = frames.get_depth_frame()
+        color_frame = aligned_frames.get_color_frame()
+        depth_frame = aligned_frames.get_depth_frame()
         color_image = np.asanyarray(color_frame.get_data())
         depth_image = np.asanyarray(depth_frame.get_data())
-        if unit == "inches":
-          depth_image = depth_image.astype(np.double) * self.depth_scale / 0.0254
-        elif unit == "meters":
-          depth_image = depth_image.astype(np.double) * self.depth_scale
+        
         return True, color_image, depth_image
 
       except:
