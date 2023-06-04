@@ -469,8 +469,8 @@ _robot_lock = None
 def _rpc_robot_values():
   global _motors, _sensors, _robot_lock
   _robot_lock.acquire()
-  motors = _motors[:] #[i for i in _motors]
-  sensors = _sensors[:] #[i for i in _sensors]
+  motors = [] if _motors is None else _motors[:]
+  sensors = [] if _sensors is None else _sensors[:]
   _robot_lock.release()
   return {
     "motors": motors,
@@ -686,8 +686,9 @@ def init(robot, frame_size=(640, 360)):
   global _global_robot
   global _motors, _sensors, _robot_lock
   _global_robot = robot
-  _motors = _global_robot._motor_values._data
-  _sensors = _global_robot._sensor_values._data
+  if _global_robot:
+    _motors = _global_robot._motor_values._data
+    _sensors = _global_robot._sensor_values._data
   _robot_lock = Lock()
 
   if hasattr(robot, "render3d"):
