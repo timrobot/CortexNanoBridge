@@ -7,6 +7,7 @@ import struct
 import threading
 import json
 import time
+import requests
 
 from multiprocessing import (
   Process,
@@ -19,8 +20,8 @@ from multiprocessing import (
 )
 import ctypes
 
-
-_frame_shape = (480, 640, 3)
+OVERLORD_IP = "http://192.168.1.34:3000"
+_frame_shape = (360, 640, 3)
 _frame = None
 _frame_lock = threading.Lock()
 
@@ -130,7 +131,12 @@ def _tx_worker(host, port,
   while running.value:
     curr_time = time.time()
     if curr_time - last_tx_timestamp >= txinterval:
+      last_tx_timestamp = curr_time
+
       txlock.acquire()
+      if txlen.value == 0:
+        txlock.release() # do nothing
+        continue
       tx = bytearray(txbuf[:txlen.value]).decode()
       txlock.release()
 
@@ -145,8 +151,6 @@ def _tx_worker(host, port,
           running.value = False
       except BrokenPipeError:
           running.value = False
-
-      last_tx_timestamp = curr_time
 
   tx_socket.close()
 
@@ -196,17 +200,18 @@ def _rx_worker(host, port,
 
     rx = pickle.loads(rx, fix_imports=True, encoding="bytes")
     rxlock.acquire()
-    rxlen.value = len(rx)
-    rxbuf[:len(rx)] = rx.encode()
+    bytearr = rx.encode()
+    rxlen.value = len(bytearr)
+    rxbuf[:len(rx)] = bytearr
     rxtime.value = time.time()
     rxlock.release()
 
   rx_socket.close()
 
-_host = "127.0.0.1"
+_host = "0.0.0.0"
 _port = 9999
 _encoding_parameters = [int(cv2.IMWRITE_JPEG_QUALITY), 90]
-_tx_ms_interval = 20 # 50Hz
+_tx_ms_interval = .02 # 50Hz
 
 _running = RawValue(ctypes.c_bool, False)
 _connected = RawValue(ctypes.c_bool, False)
@@ -222,9 +227,35 @@ _rx_timestamp = RawValue(ctypes.c_float, 0.0)
 _processes = []
 _stream_thread = None
 
-def start(host, port, frame_shape=(480, 640, 3), source=False):
+def query_overlord(hostname):
+  global OVERLORD_IP
+  for i in range(300): # try for 300 seconds
+    res = requests.get(f"{OVERLORD_IP}/get-robots").json()
+    for robot in res:
+      if robot["name"] == hostname:
+        return robot["ipv4"]
+    time.sleep(1)
+
+def publish_to_overlord(hostname):
+  s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+  s.settimeout(0)
+  s.connect(('10.254.254.254', 1))
+  IP = s.getsockname()[0]
+  
+  requests.post(f"{OVERLORD_IP}/heartbeat",
+    json={"name": hostname, "ipv4": IP})
+
+def start(host, port=9999, frame_shape=(360, 640, 3), source=False):
   global _frame_shape, _frame, _host, _port, _running, _stream_thread
-  _host = host
+  if source:
+    publish_to_overlord(host)
+    _host = "0.0.0.0"
+  else:
+    if not "." in host:
+      _host = query_overlord(host)
+    else:
+      _host = host
+  
   _port = port
   _frame_shape = frame_shape
   _frame = np.zeros((_frame_shape), np.uint8)
@@ -287,7 +318,10 @@ def get_frame():
 def recv():
   global _rx_lock, _rx_buf, _rx_len
   _rx_lock.acquire()
-  rx = bytearray(_rx_buf[:_rx_len])
+  if _rx_len.value == 0:
+    _rx_lock.release()
+    return ""
+  rx = bytearray(_rx_buf[:_rx_len.value])
   _rx_lock.release()
   msg = json.loads(rx.decode())
   return msg
@@ -295,6 +329,7 @@ def recv():
 def send(msg):
   global _tx_lock, _tx_buf, _tx_len
   _tx_lock.acquire()
-  _tx_buf[:len(msg)] = json.dumps(msg).encode()
-  _tx_len.value = len(msg)
+  bytearr = json.dumps(msg).encode()
+  _tx_buf[:len(bytearr)] = bytearr
+  _tx_len.value = len(bytearr)
   _tx_lock.release()

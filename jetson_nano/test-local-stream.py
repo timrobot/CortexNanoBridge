@@ -8,7 +8,7 @@ from core import lan, overlord
 from core.device import RealsenseCamera
 
 if __name__ == "__main__":
-  lan.start("0.0.0.0", 9990, (360, 640, 3), source=True)
+  lan.start("test-robot", source=True)
   overlord.heartbeat()
   try:
     # cam = cv2.VideoCapture(0)
