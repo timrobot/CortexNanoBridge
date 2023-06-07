@@ -19,5 +19,6 @@ if __name__ == "__main__":
       motor_values = msg["motor"]
       for i in range(10):
         robot.motor[i] = motor_values[i]
+    lan.send({ "sensor": list(robot.sensors()) })
 
   lan.stop()
