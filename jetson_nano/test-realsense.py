@@ -8,4 +8,6 @@ if __name__ == "__main__":
   while True:
     _, color, depth = cam.read("raw")
     depth_as_color = cv2.applyColorMap(np.sqrt(depth).astype(np.uint8), cv2.COLORMAP_HSV)
-    cv2.imshow(depth_as_color)
+    # cv2.imshow("depth_as_color", depth_as_color)
+    cv2.imshow("color", color)
+    cv2.waitKey(1)
