@@ -1,7 +1,7 @@
 import requests
 import socket
 
-endpoint = "192.241.156.85"
+endpoint = "http://192.168.1.34:3000"
 device_name = None
 
 def get_ip():
@@ -31,4 +31,4 @@ def heartbeat():
   if name is None:
      name = ip
   requests.post(f"http://{endpoint}/heartbeat",
-    json={"name": device_name, "ipv4": ip, "dtype": "robot"})
+    json={"name": device_name, "ipv4": ip})
