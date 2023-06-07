@@ -19,7 +19,7 @@ class IndexableArray:
 
   def set(self, arr):
     self._data.acquire()
-    self._data[:] = arr
+    self._data[:len(arr)] = arr
     self._data.release()
 
   def __iter__(self):
