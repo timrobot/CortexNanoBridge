@@ -226,13 +226,9 @@ class RealsenseCamera:
     
     x = depth
     h, w = x.shape
-    x1 = np.right_shift(np.bitwise_and(x, 0x0000f800), 8).astype(np.uint8)
-    # x1 = np.bitwise_or(x1, np.random.randint(0x8, size=(h, w), dtype=np.uint8))   # 3 bit noise
-    x2 = np.right_shift(np.bitwise_and(x, 0x000007e0), 3).astype(np.uint8)
-    # x2 = np.bitwise_or(x2, np.random.randint(0x4, size=(h, w), dtype=np.uint8))   # 2 bit noise
-    x3 = np.left_shift (np.bitwise_and(x, 0x0000001f), 3).astype(np.uint8)
-    # x3 = np.bitwise_or(x3, np.random.randint(0x8, size=(h, w), dtype=np.uint8))   # 3 bit noise
-    frame = np.concatenate((x1.reshape(h, w, 1), x2.reshape(h, w, 1), x3.reshape(h, w, 1)), axis=-1)
+    x2 = np.right_shift(np.bitwise_and(x, 0x000003fc), 2).astype(np.uint8)
+    x3 = np.left_shift (np.bitwise_and(x, 0x000000ff), 3).astype(np.uint8)
+    frame = np.concatenate((x2.reshape(h, w, 1), x3.reshape(h, w, 1), x2.reshape(h, w, 1)), axis=-1)
 
     frame = np.concatenate((color, frame), axis=1)
     return frame
