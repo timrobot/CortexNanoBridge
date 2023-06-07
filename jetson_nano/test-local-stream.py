@@ -17,6 +17,10 @@ if __name__ == "__main__":
       # _, frame = cam.read()
       color, depth = cam.read()
       lan.set_frame(color)
+      msg = lan.recv()
+      if msg:
+        if isinstance(msg, dict) and "motor" in msg:
+          print(msg["motor"])
   except Exception as e:
     print(e)
   finally:

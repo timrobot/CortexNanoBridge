@@ -33,7 +33,6 @@ def _stream_sender(host, port,
   Streams data out
   """
   global _frame, _frame_lock, _frame_shape
-  print("Waiting on _stream_sender")
   sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
   sock.bind((host, port))
   sock.listen()
@@ -42,7 +41,6 @@ def _stream_sender(host, port,
     connected.value = True
     break
 
-  print("Started _stream_sender")
   while running.value:
     _frame_lock.acquire()
     frame = _frame
@@ -77,7 +75,6 @@ def _stream_receiver(host, port,
   payload_size = struct.calcsize('>L')
   data = b""
 
-  print("Started _stream_receiver")
   while running.value:
     break_loop = False
 
@@ -127,7 +124,6 @@ def _tx_worker(host, port,
 
   last_tx_timestamp = time.time()
 
-  print("Started _tx_worker")
   while running.value:
     curr_time = time.time()
     if curr_time - last_tx_timestamp >= txinterval:
@@ -172,7 +168,6 @@ def _rx_worker(host, port,
   payload_size = struct.calcsize('>L')
   data = b""
 
-  print("Started _rx_worker")
   while running.value:
     break_loop = False
 
@@ -299,8 +294,6 @@ def stop():
     time.sleep(1)
     for p in _processes:
       p.kill()
-  else:
-    print("Sender not streaming!")
 
 def set_frame(frame: np.ndarray):
   global _frame_lock, _frame
@@ -320,7 +313,7 @@ def recv():
   _rx_lock.acquire()
   if _rx_len.value == 0:
     _rx_lock.release()
-    return ""
+    return None
   rx = bytearray(_rx_buf[:_rx_len.value])
   _rx_lock.release()
   msg = json.loads(rx.decode())
