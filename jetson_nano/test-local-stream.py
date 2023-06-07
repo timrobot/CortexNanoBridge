@@ -10,7 +10,7 @@ if __name__ == "__main__":
     cam = RealsenseCamera()
     while True:
       # _, frame = cam.read()
-      color, depth = cam.read()
+      _, color, depth = cam.read()
       lan.set_frame(color)
   except Exception as e:
     print(e)
