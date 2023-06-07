@@ -224,7 +224,7 @@ class RealsenseCamera:
     if not ret:
       return np.zeros((self.height, self.width * 2, 3), dtype=np.uint8)
     
-    x = (depth * 1000.).astype(np.int32) # meters to mm
+    x = depth
     h, w = x.shape
     x1 = np.right_shift(np.bitwise_and(x, 0x0000f800), 8).astype(np.uint8)
     # x1 = np.bitwise_or(x1, np.random.randint(0x8, size=(h, w), dtype=np.uint8))   # 3 bit noise
