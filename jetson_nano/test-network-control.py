@@ -1,3 +1,8 @@
+import sys
+import os
+USER = os.listdir("/home")[0]
+sys.path.append(f"/home/{USER}/.local/lib/python3.8/site-packages")
+
 from core.device import Robot, RealsenseCamera
 from core import lan
 
