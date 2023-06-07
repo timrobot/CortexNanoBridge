@@ -2,7 +2,7 @@ import requests
 import socket
 
 endpoint = "http://192.168.1.34:3000"
-device_name = None
+device_name = "test-robot"
 
 def get_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
