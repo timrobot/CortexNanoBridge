@@ -1,13 +1,18 @@
-from core.device import Robot
-from core import netcomms as nc
+from core.device import Robot, RealsenseCamera
+from core import lan
 
 if __name__ == "__main__":
-  robot = Robot("COM4")
-  nc.init(robot)
+  robot = Robot("/dev/ttyUSB0")
+  lan.start("test-robot", source=True)
+  cam = RealsenseCamera()
 
   while robot.running():
-    keys = nc.keyboard()
-    robot.motor[0] = (keys.KeyS - keys.KeyW) * 63
-    robot.motor[9] = (keys.KeyQ - keys.KeyA) * 63
+    color, depth = cam.read()
+    lan.set_frame(color)
+    msg = lan.recv()
+    if msg and isinstance(msg, dict) and "motor" in msg:
+      motor_values = msg["motor"]
+      for i in range(10):
+        robot.motor[i] = motor_values[i]
 
-  nc.close()
+  lan.stop()
