@@ -234,7 +234,7 @@ class RealsenseCamera:
     # x3 = np.bitwise_or(x3, np.random.randint(0x8, size=(h, w), dtype=np.uint8))   # 3 bit noise
     frame = np.concatenate((x1.reshape(h, w, 1), x2.reshape(h, w, 1), x3.reshape(h, w, 1)), axis=-1)
 
-    frame = np.concatenate((color, depth), axis=1)
+    frame = np.concatenate((color, frame), axis=1)
     return frame
 
   def depth2rgb(self, depth):
