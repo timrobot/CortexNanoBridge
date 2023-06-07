@@ -8,7 +8,7 @@ import os
 import rplidar
 import pyrealsense2 as rs
 from typing import Tuple
-from . import vex_serial, assembly, overlord
+from . import vex_serial, assembly
 
 PORT1  =  0
 PORT2  =  1
@@ -42,7 +42,6 @@ class Robot(vex_serial.VexCortex): # just a wrapper really with state mgmt
     self.description = {}
     self.model = None
     if model:
-      overlord.set_name(model)
       if os.path.exists(model + ".json"):
         with open(model, "r") as fp:
           self.description = json.load(fp)
@@ -55,7 +54,6 @@ class Robot(vex_serial.VexCortex): # just a wrapper really with state mgmt
     pass
 
   def running(self):
-    overlord.heartbeat()
     return super().running()
 
 _kill_event = threading.Event()
