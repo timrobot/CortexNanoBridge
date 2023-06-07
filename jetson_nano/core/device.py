@@ -227,7 +227,7 @@ class RealsenseCamera:
     x = depth
     h, w = x.shape
     x2 = np.right_shift(np.bitwise_and(x, 0x000003fc), 2).astype(np.uint8)
-    x3 = np.left_shift (np.bitwise_and(x, 0x000000ff), 3).astype(np.uint8)
+    x3 = np.bitwise_and(x, 0x000000ff).astype(np.uint8)
     frame = np.concatenate((x2.reshape(h, w, 1), x3.reshape(h, w, 1), x2.reshape(h, w, 1)), axis=-1)
 
     frame = np.concatenate((color, frame), axis=1)
