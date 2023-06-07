@@ -8,12 +8,12 @@ from core import lan
 
 if __name__ == "__main__":
   robot = Robot("/dev/ttyUSB0")
-  lan.start("test-robot", source=True)
+  lan.start("test-robot", frame_shape=(360, 1280, 3), source=True)
   cam = RealsenseCamera()
 
   while robot.running():
-    color, depth = cam.read()
-    lan.set_frame(color)
+    frame = cam.get_combined_frame()
+    lan.set_frame(frame)
     msg = lan.recv()
     if msg and isinstance(msg, dict) and "motor" in msg:
       motor_values = msg["motor"]

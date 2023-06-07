@@ -218,6 +218,24 @@ class RealsenseCamera:
     # color = np.ascontiguousarray(np.flip(color, axis=-1))
 
     return color, depth
+  
+  def get_combined_frame(self):
+    ret, color, depth = self.capture()
+    if not ret:
+      return np.zeros((self.height, self.width * 2, 3), dtype=np.uint8)
+    
+    x = (depth * 1000.).astype(np.int32) # meters to mm
+    h, w = x.shape
+    x1 = np.right_shift(np.bitwise_and(x, 0x0000f800), 8).astype(np.uint8)
+    # x1 = np.bitwise_or(x1, np.random.randint(0x8, size=(h, w), dtype=np.uint8))   # 3 bit noise
+    x2 = np.right_shift(np.bitwise_and(x, 0x000007e0), 3).astype(np.uint8)
+    # x2 = np.bitwise_or(x2, np.random.randint(0x4, size=(h, w), dtype=np.uint8))   # 2 bit noise
+    x3 = np.left_shift (np.bitwise_and(x, 0x0000001f), 3).astype(np.uint8)
+    # x3 = np.bitwise_or(x3, np.random.randint(0x8, size=(h, w), dtype=np.uint8))   # 3 bit noise
+    frame = np.concatenate((x1.reshape(h, w, 1), x2.reshape(h, w, 1), x3.reshape(h, w, 1)), axis=-1)
+
+    frame = np.concatenate((color, depth), axis=1)
+    return frame
 
   def depth2rgb(self, depth):
     if depth.dtype == np.uint16:
