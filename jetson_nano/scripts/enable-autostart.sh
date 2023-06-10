@@ -1,3 +1,6 @@
 #!/bin/sh
-cat "python3 $PWD/../app.py" > robotdaemon.sh
-sudo ln -s $PWD/robotdaemon.sh /etc/profile.d/robotdaemon.sh
+
+sudo copy nvcortexnano.service /lib/systemd/system/
+sudo systemctl enable nvcortexnano.service
+sudo daemon-reload
+sudo systemctl start nvcortexnano.service
