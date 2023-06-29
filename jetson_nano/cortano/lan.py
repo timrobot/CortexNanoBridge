@@ -224,7 +224,7 @@ _rx_timestamp = RawValue(ctypes.c_float, 0.0)
 _processes = []
 _stream_thread = None
 
-def publish_to_overlord(hostname):
+def notify_overlord(hostname):
   s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
   s.settimeout(0)
   s.connect(('10.254.254.254', 1))
@@ -241,7 +241,7 @@ def heartbeat(interval_ms=1000):
   if _botname and (_last_heartbeat_timestamp is None \
                    or (curr_time - _last_heartbeat_timestamp) * 1000 >= interval_ms):
     _last_heartbeat_timestamp = curr_time
-    publish_to_overlord(_botname)
+    notify_overlord(_botname)
 
 def start(host=None, port=9999, frame_shape=(360, 640, 3), source=True): # source=True for robot
   global _frame_shape, _frame, _botname, _host, _port, _running, _stream_thread
@@ -255,7 +255,7 @@ def start(host=None, port=9999, frame_shape=(360, 640, 3), source=True): # sourc
         host = j.get("name", None)
 
   if source:
-    publish_to_overlord(host)
+    notify_overlord(host)
     _botname = host
     _host = "0.0.0.0"
   # else:
@@ -340,3 +340,5 @@ def send(msg):
   _tx_buf[:len(bytearr)] = bytearr
   _tx_len.value = len(bytearr)
   _tx_lock.release()
+
+  heartbeat() # update heartbeat only on sending intervals to lan
