@@ -44,6 +44,7 @@ def estimate_normals(pts, radius=1.0, max_nn=20):
 
 def ICP_point2point(source, target, threshold, initial_transform,
                     fitness=1e-6, rmse=1e-6, max_iter=1):
+  # http://www.open3d.org/docs/release/tutorial/pipelines/icp_registration.html
   T = initial_transform
   for _ in range(max_iter):
     # find the closest points as correspondences
@@ -82,8 +83,17 @@ def ICP_point2point(source, target, threshold, initial_transform,
     T = T_ @ T
   return T
 
+def ICP_Point2Plane(source, target, source_normal, target_normal,
+                    threshold, initial_transform,
+                    fitness=1e-6, rmse=1e-6, max_iter=1):
+  T = initial_transform
+
+Point2Point = "ICP_Point2Point"
+Point2Plane = "ICP_Point2Plane"
+
 def estimate_pointcloud_transform(source, target, T=np.eye(4),
-    voxel_radius=[0.016, 0.008, 0.004], iterations=[25, 15, 10]):
+    voxel_radius=[0.016, 0.008, 0.004], iterations=[25, 15, 10],
+    method=Point2Point):
   for radius, iteration in zip(voxel_radius, iterations):
     radius = 0.01
     A = voxel_down_sample(source, radius)
@@ -92,7 +102,10 @@ def estimate_pointcloud_transform(source, target, T=np.eye(4),
     An = estimate_normals(A, radius=radius * 2, max_nn=20)
     Bn = estimate_normals(B, radius=radius * 2, max_nn=20)
 
-    T = ICP_point2point(A, B, 0.5, T, max_iter=iteration)
+    if method == Point2Point:
+      T = ICP_point2point(A, B, 0.5, T, max_iter=iteration)
+    elif method == Point2Plane:
+      T = ICP_point2point(A, B, An, Bn, T, max_iter=iteration)
   return T
 
 class ObjectDetector:
@@ -209,7 +222,7 @@ class ObjectDetector:
       # source_pcd.points = o3d.utility.Vector3dVector(pts)
       # source_pcd.colors = o3d.utility.Vector3dVector(np.zeros_like(pts))
       # target_pcd = self.pcd3[label]
-      T = estimate_pcd_transform(source_pcd, target_pcd)
+      T = estimate_pointcloud_transform(source_pcd, target_pcd)
       T3.append(T)
 
     # reformat the output

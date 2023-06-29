@@ -1,7 +1,7 @@
-from core.device import Robot
+from ..src.vex_serial import VexCortex
 
 if __name__ == "__main__":
-  robot = Robot("COM4")
+  robot = VexCortex("COM4")
   while robot.running():
     robot.motor[0] = 0
     robot.motor[9] = 0

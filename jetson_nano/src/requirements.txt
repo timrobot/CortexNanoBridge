@@ -1,0 +1,5 @@
+numpy
+websockets
+requests
+scipy
+rplidar-roboticia
