@@ -237,8 +237,7 @@ def start(host=None, port=9999, frame_shape=(360, 640, 3), source=True): # sourc
 
   if host is None:
     host = "Unknown robot"
-    username = os.listdir("/home")[0]
-    config_path = f"/home/{username}/Documents/robot-config.json"
+    config_path = f"/usr/local/cortano/robot-config.json"
     if os.path.exists(config_path):
       with open(config_path, "r") as fp:
         j = dict(json.load(fp))

@@ -15,6 +15,7 @@ def _post_install():
     #   device.py
     #   lan.py
     #   ...
+    #   worker.py
     #   pyrealsense2/
     #     bin/
     #     lib/
@@ -47,7 +48,7 @@ with open("requirements.txt", "r") as f:
     install_requires = [line.strip() for line in f.readlines() if line]
 
 setup(
-    name="nvcn",
+    name="cortano",
     version="0.0.1",
     packages=find_packages(exclude=["scripts", "test"]),
     author="Timothy Yong",

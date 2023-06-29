@@ -4,7 +4,7 @@ After=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3.8 /home/ansatsu/robopu/bigrc.py
+ExecStart=/usr/bin/python3.6 /usr/local/cortano/worker.py
 Restart=on-failure
 RestartSec=5
 KillMode=mixed
