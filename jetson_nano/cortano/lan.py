@@ -340,5 +340,3 @@ def send(msg):
   _tx_buf[:len(bytearr)] = bytearr
   _tx_len.value = len(bytearr)
   _tx_lock.release()
-
-  heartbeat() # update heartbeat only on sending intervals to lan
