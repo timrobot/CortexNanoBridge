@@ -19,6 +19,7 @@ from multiprocessing import (
   Value
 )
 import ctypes
+import os
 
 OVERLORD_IP = "http://192.168.1.34:3000"
 _frame_shape = (360, 640, 3)
@@ -222,15 +223,6 @@ _rx_timestamp = RawValue(ctypes.c_float, 0.0)
 _processes = []
 _stream_thread = None
 
-def query_overlord(hostname):
-  global OVERLORD_IP
-  for i in range(300): # try for 300 seconds
-    res = requests.get(f"{OVERLORD_IP}/get-robots").json()
-    for robot in res:
-      if robot["name"] == hostname:
-        return robot["ipv4"]
-    time.sleep(1)
-
 def publish_to_overlord(hostname):
   s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
   s.settimeout(0)
@@ -240,16 +232,26 @@ def publish_to_overlord(hostname):
   requests.post(f"{OVERLORD_IP}/heartbeat",
     json={"name": hostname, "ipv4": IP})
 
-def start(host, port=9999, frame_shape=(360, 640, 3), source=False):
+def start(host=None, port=9999, frame_shape=(360, 640, 3), source=True): # source=True for robot
   global _frame_shape, _frame, _host, _port, _running, _stream_thread
+
+  if host is None:
+    host = "Unknown robot"
+    username = os.listdir("/home")[0]
+    config_path = f"/home/{username}/Documents/robot-config.json"
+    if os.path.exists(config_path):
+      with open(config_path, "r") as fp:
+        j = dict(json.load(fp))
+        host = j.get("name", None)
+
   if source:
     publish_to_overlord(host)
     _host = "0.0.0.0"
-  else:
-    if not "." in host:
-      _host = query_overlord(host)
-    else:
-      _host = host
+  # else:
+  #   if not "." in host:
+  #     _host = query_overlord(host)
+  #   else:
+  #     _host = host
   
   _port = port
   _frame_shape = frame_shape
@@ -272,6 +274,7 @@ def start(host, port=9999, frame_shape=(360, 640, 3), source=False):
         _connected, _running
       ))
 
+    # these are running under new processes since the threads are necessary for speed
     _processes.append(Process(target=_tx_worker, args=(
       _host, _port + (1 if source else 2),
       _tx_buf, _tx_len, _tx_lock, _tx_ms_interval,
