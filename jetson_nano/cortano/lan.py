@@ -204,6 +204,7 @@ def _rx_worker(host, port,
 
   rx_socket.close()
 
+_botname = ""
 _host = "0.0.0.0"
 _port = 9999
 _encoding_parameters = [int(cv2.IMWRITE_JPEG_QUALITY), 90]
@@ -232,8 +233,18 @@ def publish_to_overlord(hostname):
   requests.post(f"{OVERLORD_IP}/heartbeat",
     json={"name": hostname, "ipv4": IP})
 
+_last_heartbeat_timestamp = None
+def heartbeat(interval_ms=1000):
+  global _last_heartbeat_timestamp
+  curr_time = time.time()
+  global _botname
+  if _botname and (_last_heartbeat_timestamp is None \
+                   or (curr_time - _last_heartbeat_timestamp) * 1000 >= interval_ms):
+    _last_heartbeat_timestamp = curr_time
+    publish_to_overlord(_botname)
+
 def start(host=None, port=9999, frame_shape=(360, 640, 3), source=True): # source=True for robot
-  global _frame_shape, _frame, _host, _port, _running, _stream_thread
+  global _frame_shape, _frame, _botname, _host, _port, _running, _stream_thread
 
   if host is None:
     host = "Unknown robot"
@@ -245,6 +256,7 @@ def start(host=None, port=9999, frame_shape=(360, 640, 3), source=True): # sourc
 
   if source:
     publish_to_overlord(host)
+    _botname = host
     _host = "0.0.0.0"
   # else:
   #   if not "." in host:
