@@ -145,7 +145,14 @@ def _serial_worker(path, baud, motors, sensors, enabled, readtime, keep_running)
   connection.close()
 
 class VexCortex:
+  _entity = None
+
   def __init__(self, path=None, baud=115200):
+    if VexCortex._entity is None:
+      VexCortex._entity = self
+    else:
+      raise Exception("Already created VexCortex")
+
     self.baud = baud
     self._enabled = Value(c_bool, True)
     self._keep_running = RawValue(c_bool, True)

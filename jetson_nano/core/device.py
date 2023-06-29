@@ -9,7 +9,7 @@ import rplidar
 import pyrealsense2 as rs
 from typing import Tuple
 import cv2
-from . import vex_serial, assembly
+from . import vex_serial
 
 PORT1  =  0
 PORT2  =  1
@@ -32,36 +32,11 @@ PORT18 = 17
 PORT19 = 18
 PORT20 = 19
 
-class Robot(vex_serial.VexCortex): # just a wrapper really with state mgmt
-  _entity = None
-
-  def __init__(self, model="", path=None, baud=115200):
-    super().__init__(path=path, baud=baud)
-    if not Robot._entity:
-      Robot._entity = self
-
-    self.description = {}
-    self.model = None
-    if model:
-      if os.path.exists(model + ".json"):
-        with open(model, "r") as fp:
-          self.description = json.load(fp)
-          self.model = assembly.load(self.description)
-
-  def obs(self) -> np.ndarray:
-    return None
-
-  def act(self, _: np.ndarray):
-    pass
-
-  def running(self):
-    return super().running()
-
 _kill_event = threading.Event()
 def handle_signal(sig, frame):
   _kill_event.set()
-  if Robot._entity:
-    Robot._entity._keep_running.value = False
+  if vex_serial.VexCortex._entity:
+    vex_serial.VexCortex._entity._keep_running.value = False
 signal.signal(signal.SIGINT, handle_signal)
 
 def _run_rplidar(path, full_scan, keep_running, lock):
