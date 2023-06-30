@@ -94,11 +94,13 @@ def _decode_message(msg):
 
 def _receive_data(connection, rxbuf):
   msg = None
-  if (buf := connection.read_all()):
+  buf = connection.read_all()
+  if buf:
     rxbuf += buf.decode()
-    if (end := rxbuf.find(']')) != -1:
-      if (start := rxbuf.find('[', 0, end)) \
-          and '[' not in rxbuf[start+1:end]:
+    end = rxbuf.find(']')
+    if end != -1:
+      start = rxbuf.find('[', 0, end)
+      if start != -1 and '[' not in rxbuf[start+1:end]:
         msg =  rxbuf[start:end+1]
       rxbuf = rxbuf[end+1:]
   return msg, rxbuf

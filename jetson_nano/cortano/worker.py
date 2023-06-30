@@ -1,6 +1,4 @@
-from cortano.vex_serial import VexCortex
-from cortano.device import RealsenseCamera
-from cortano import lan
+from cortano import VexCortex, RealsenseCamera, lan
 
 if __name__ == "__main__":
   robot = VexCortex("/dev/ttyUSB0")
