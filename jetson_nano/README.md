@@ -1,12 +1,7 @@
-To use this package, use pip to install via wheel:
+To use this package, first run the install script:
 
 ```bash
-python3 -m pip install .
+./install.sh
 ```
 
-Then run the supporting scripts that will enable USB serial for $USER and autostart the worker.py script on launch
-
-```bash
-./enable-tty.sh
-./enable-autostart.sh
-```
+Pyrealsense should be installed for py3.6 and cu10.2 alongside the primary package
