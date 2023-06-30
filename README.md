@@ -29,7 +29,7 @@ https://github.com/timrobot/CortexNanoBridge
 
 Push vex_cortex/main_app.c from the RobotC interface (only on windows and possibly mac) onto the VexCortex
 
-Clone the repo to the jetson_nano/ folder and run the installer on the Jetson Nano:
+Clone the repo to the Jetson Nano, navigate to the jetson_nano/ folder and run the installer:
 ```bash
 sudo ./install.sh
 ```
