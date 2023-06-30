@@ -24,6 +24,8 @@ if __name__ == "__main__":
         if not os.path.exists(parent_path):
             os.makedirs(parent_path)
         shutil.copy(os.path.join(*libpath), path)
+        if split_path[2] == "OFF":
+            shutil.copy(os.path.join(*libpath), "./cortano/")
 
     curr_dir = os.getcwd()
     with open(os.path.join(curr_dir, "scripts", "nvcortexnano.service"), "r") as fp:
