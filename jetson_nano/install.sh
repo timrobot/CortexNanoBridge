@@ -1,8 +1,6 @@
 #!/bin/sh
 
-# pyrealsense2
 python3 install.py
-sudo cp ./pyrealsense2/config/99-realsense-libusb.rules /etc/udev/rules.d/ && sudo udevadm control --reload-rules && udevadm trigger
 
 # /dev/ttyACM* access from user
 usermod -a -G dialout $USER
