@@ -1,6 +1,7 @@
-To use this package, first run the install script:
+To use this package, run the install script:
 
 ```bash
+chmod +x install.sh
 sudo ./install.sh
 ```
 

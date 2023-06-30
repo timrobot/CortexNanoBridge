@@ -31,6 +31,7 @@ Push vex_cortex/main_app.c from the RobotC interface (only on windows and possib
 
 Clone the repo to the Jetson Nano, navigate to the jetson_nano/ folder and run the installer:
 ```bash
+chmod +x install.sh
 sudo ./install.sh
 ```
 Log out and log back in for the permissions on the TTY ports (connected to the VexCortex) to refresh correctly
