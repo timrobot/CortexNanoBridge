@@ -5,8 +5,6 @@ if __name__ == "__main__":
     with open(os.path.join("pyrealsense2", "config", "install_manifest.txt"), "r") as f:
             install_manifest = [line.strip() for line in f.readlines() if line]
 
-    username = os.listdir('/home')[0]
-
     # format in the .whl
     # whl/
     #   bin/
@@ -16,9 +14,6 @@ if __name__ == "__main__":
 
     for path in install_manifest:
         split_path = path[1:].split("/")
-        if split_path[0] == "home":
-            split_path[1] = username
-            path = os.path.join(split_path)
         libpath = split_path[2:]
         parent_path = os.path.dirname(path)
         if not os.path.exists(parent_path):
