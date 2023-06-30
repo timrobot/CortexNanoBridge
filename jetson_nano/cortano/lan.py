@@ -255,7 +255,7 @@ def start(host=None, port=9999, frame_shape=(360, 640, 3), source=True): # sourc
         host = j.get("name", None)
 
   if source:
-    notify_overlord(host)
+    # notify_overlord(host)
     _botname = host
     _host = "0.0.0.0"
   # else:
