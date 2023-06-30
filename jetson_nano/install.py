@@ -2,25 +2,8 @@ import os
 import shutil
 
 if __name__ == "__main__":
-    with open(os.path.join("pyrealsense2", "config", "install_manifest.txt"), "r") as f:
-            install_manifest = [line.strip() for line in f.readlines() if line]
-
-    # format in the .whl
-    # whl/
-    #   bin/
-    #   lib/
-    #   include/
-    #   Documents/
-
-    for path in install_manifest:
-        split_path = path[1:].split("/")
-        libpath = split_path[2:]
-        parent_path = os.path.dirname(path)
-        if not os.path.exists(parent_path):
-            os.makedirs(parent_path)
-        shutil.copy(os.path.join(*libpath), path)
-        if split_path[2] == "OFF":
-            shutil.copy(os.path.join(*libpath), "./cortano/")
+    for fname in os.listdir("/usr/local/OFF"):
+        shutil.copy(os.path.join("/usr/local/OFF", fname), "./cortano/")
 
     curr_dir = os.getcwd()
     with open(os.path.join(curr_dir, "scripts", "nvcortexnano.service"), "r") as fp:
