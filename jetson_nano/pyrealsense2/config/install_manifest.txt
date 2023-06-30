@@ -96,7 +96,6 @@
 /usr/local/bin/rs-embed
 /usr/local/bin/rs-data-collect
 /usr/local/bin/realsense-viewer
-/home/nano/Documents/librealsense2/presets/sample.preset
 /usr/local/bin/rs-depth-quality
 /usr/local/bin/rs-rosbag-inspector
 /usr/local/bin/rs-benchmark
