@@ -1,5 +1,6 @@
 numpy
 websockets
 requests
+pyserial
 scipy
 rplidar-roboticia
