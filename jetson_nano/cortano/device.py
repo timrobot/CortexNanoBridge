@@ -5,7 +5,6 @@ import numpy as np
 import json
 import multiprocessing
 import os
-import rplidar
 import pyrealsense2 as rs
 from typing import Tuple
 import cv2
