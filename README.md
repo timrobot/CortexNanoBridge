@@ -33,6 +33,7 @@ Clone the repo to the Jetson Nano, navigate to the jetson_nano/ folder and run t
 ```bash
 sudo ./install.sh
 ```
+Log out and log back in for the permissions on the TTY ports (connected to the VexCortex) to refresh correctly
 
 **For now we use .sh scripts for installation of both the jetson nano material and the pyrealsense library since the
 PyPI setup isn't working fully.
