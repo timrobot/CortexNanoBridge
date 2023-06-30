@@ -2,7 +2,7 @@ from cortano import VexCortex, RealsenseCamera, lan
 
 if __name__ == "__main__":
   robot = VexCortex("/dev/ttyUSB0")
-  lan.start("test-robot", frame_shape=(360, 1280, 3))
+  lan.start("Unknown robot", frame_shape=(360, 1280, 3))
   cam = RealsenseCamera()
 
   while robot.running():
