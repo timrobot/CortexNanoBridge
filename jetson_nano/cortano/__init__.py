@@ -19,7 +19,6 @@ from .device import (
     PORT18,
     PORT19,
     PORT20,
-    RPLidar,
     RealsenseCamera
 )
 from .lan import (

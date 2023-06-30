@@ -1,13 +1,14 @@
 #!/bin/sh
 
-python3 install.py
+sudo python3 install.py
+sudo python3 -m pip install .
 
-# /dev/ttyACM* access from user
+# /dev/ttyUSB* access from user, although it doesn't matter for su worker
 usermod -a -G dialout $USER
 usermod -a -G tty $USER
 
 # worker enable
-sudo copy scripts/nvcortexnano.service /lib/systemd/system/
+sudo cp scripts/nvcortexnano.service /lib/systemd/system/
 sudo systemctl enable nvcortexnano.service
-sudo daemon-reload
+sudo systemctl daemon-reload
 sudo systemctl start nvcortexnano.service
