@@ -1,4 +1,4 @@
-from core.device import RealsenseCamera
+from ..cortano.device import RealsenseCamera
 import cv2
 import numpy as np
 

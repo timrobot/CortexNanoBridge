@@ -1,4 +1,4 @@
-from ..src.vex_serial import VexCortex
+from ..cortano.vex_serial import VexCortex
 
 if __name__ == "__main__":
   robot = VexCortex("COM4")
