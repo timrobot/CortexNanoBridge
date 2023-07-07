@@ -31,7 +31,7 @@ def _try_recv(sock, count=4096):
     ready_to_read, ready_to_write, in_error = select.select(
       [sock,], [sock,], [], 2
     )
-    if ready_to_read > 0:
+    if len(ready_to_read) > 0:
       received = sock.recv(count)
       if received == b'':
         sock.close()
