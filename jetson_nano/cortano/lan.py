@@ -8,6 +8,7 @@ import threading
 import json
 import time
 import requests
+import select
 
 from multiprocessing import (
   Process,
@@ -21,11 +22,27 @@ from multiprocessing import (
 import ctypes
 import os
 
-OVERLORD_IP = "http://192.168.1.34:3000"
 _frame_shape = (360, 640, 3)
 _frame = None
 _frame_lock = threading.Lock()
 
+def _try_recv(sock, count=4096):
+  try:
+    ready_to_read, ready_to_write, in_error = select.select(
+      [sock,], [sock,], [], 2
+    )
+    if ready_to_read > 0:
+      received = sock.recv(count)
+      if received == b'':
+        sock.close()
+        print("Warning: stream received empty bytes, closing and attempting reconnect...")
+        return -1, ready_to_read, ready_to_write, None
+      return len(received), ready_to_read, ready_to_write, received
+  except select.error:
+    sock.shutdown(2)
+    sock.close()
+    print("Warning: stream has been disconnected for 1.0 seconds, attempting reconnect...")
+    return -1, 0, 0, None
 
 def _stream_sender(host, port,
         buf: RawArray, lock: Lock, shape, encoding_params,
@@ -37,12 +54,14 @@ def _stream_sender(host, port,
   sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
   sock.bind((host, port))
   sock.listen()
-  while running.value:
-    connection, address = sock.accept()
-    connected.value = True
-    break
+  connected.value = is_connected = False
+  conn = None
 
   while running.value:
+    if not is_connected:
+      conn, address = sock.accept()
+      connected.value = is_connected = True
+
     _frame_lock.acquire()
     frame = _frame
     _frame_lock.release()
@@ -53,79 +72,37 @@ def _stream_sender(host, port,
     size = len(data)
 
     try:
-        connection.sendall(struct.pack('>L', size) + data)
+        conn.sendall(struct.pack('>L', size) + data)
     except ConnectionResetError:
-        running.value = False
+        connected.value = is_connected = False
+        conn.close()
+        # running.value = False
     except ConnectionAbortedError:
-        running.value = False
+        connected.value = is_connected = False
+        conn.close()
+        # running.value = False
     except BrokenPipeError:
-        running.value = False
-
-  sock.close()
-            
-def _stream_receiver(host, port,
-        buf: RawArray, lock: Lock,
-        connected: RawValue, running: RawValue):
-  """
-  Handles the connection and processes its stream data.
-  """
-  global _frame, _frame_lock, _frame_shape
-  sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-  sock.connect((host, port))
-  connected.value = True
-  payload_size = struct.calcsize('>L')
-  data = b""
-
-  while running.value:
-    break_loop = False
-
-    while len(data) < payload_size:
-      received = sock.recv(4096)
-      if received == b'':
-        sock.close()
-        break_loop = True
-        break
-      data += received
-
-    if break_loop:
-      break
-
-    packed_msg_size = data[:payload_size]
-    data = data[payload_size:]
-
-    msg_size = struct.unpack(">L", packed_msg_size)[0]
-
-    while len(data) < msg_size:
-      data += sock.recv(4096)
-
-    frame_data = data[:msg_size]
-    data = data[msg_size:]
-
-    frame = pickle.loads(frame_data, fix_imports=True, encoding="bytes")
-    _frame_lock.acquire()
-    _frame = cv2.imdecode(frame, cv2.IMREAD_COLOR)#.reshape((-1,))
-    _frame_lock.release()
+        connected.value = is_connected = False
+        conn.close()
+        # running.value = False
 
   sock.close()
 
 def _tx_worker(host, port,
         txbuf: RawArray, txlen: RawValue, txlock: Lock, txinterval,
-        connected: RawValue, running: RawValue, source):
+        connected: RawValue, running: RawValue):
   tx_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-  if source:
-    tx_socket.bind((host, port))
-    tx_socket.listen()
-    while running.value:
-      tx_pipe, address = tx_socket.accept()
-      connected.value = True
-      break
-  else:
-    tx_socket.connect((host, port))
-    tx_pipe = tx_socket
-
+  tx_socket.bind((host, port))
+  tx_socket.listen()
+  is_connected = False
+  tx_conn = None
   last_tx_timestamp = time.time()
 
   while running.value:
+    if not is_connected:
+      tx_conn, address = tx_socket.accept()
+      is_connected = True
+
     curr_time = time.time()
     if curr_time - last_tx_timestamp >= txinterval:
       last_tx_timestamp = curr_time
@@ -141,47 +118,47 @@ def _tx_worker(host, port,
       size = len(tx)
 
       try:
-          tx_pipe.sendall(struct.pack('>L', size) + tx)
+          tx_conn.sendall(struct.pack('>L', size) + tx)
       except ConnectionResetError:
-          running.value = False
+          is_connected = False
+          tx_conn.close()
+          # running.value = False
       except ConnectionAbortedError:
-          running.value = False
+          is_connected = False
+          tx_conn.close()
+          # running.value = False
       except BrokenPipeError:
-          running.value = False
+          is_connected = False
+          tx_conn.close()
+          # running.value = False
 
   tx_socket.close()
 
 def _rx_worker(host, port,
         rxbuf: RawArray, rxlen: RawValue, rxlock: Lock, rxtime: RawValue,
-        connected: RawValue, running: RawValue, source):
+        connected: RawValue, running: RawValue):
   rx_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-  if source:
-    rx_socket.bind((host, port))
-    rx_socket.listen()
-    while running.value:
-      rx_pipe, address = rx_socket.accept()
-      connected.value = True
-      break
-  else:
-    rx_socket.connect((host, port))
-    rx_pipe = rx_socket
-
+  rx_socket.bind((host, port))
+  rx_socket.listen()
   payload_size = struct.calcsize('>L')
+  is_connected = False
   data = b""
+  rx_conn = None
 
   while running.value:
-    break_loop = False
+    if not is_connected:
+      rx_conn, address = rx_socket.accept()
+      is_connected = True
+      break
 
     while len(data) < payload_size:
-      received = rx_pipe.recv(4096)
-      if received == b'':
-        rx_pipe.close()
-        break_loop = True
-        break
-      data += received
-
-    if break_loop: # transmission failed
-      break
+      length, _, __, received = _try_recv(rx_conn)
+      if length == -1:
+        is_connected = False # attempt to reconnect
+      elif length > 0:
+        data += received
+    # retry connection...
+    if not is_connected: continue
 
     packed_msg_size = data[:payload_size]
     data = data[payload_size:]
@@ -189,7 +166,13 @@ def _rx_worker(host, port,
     msg_size = struct.unpack(">L", packed_msg_size)[0]
 
     while len(data) < msg_size:
-      data += rx_pipe.recv(4096)
+      length, _, __, received = _try_recv(rx_conn)
+      if length == -1:
+        is_connected = False # attempt to reconnect
+      elif length > 0:
+        data += received
+    # retry connection...
+    if not is_connected: continue
 
     rx = data[:msg_size]
     data = data[msg_size:]
@@ -224,26 +207,7 @@ _rx_timestamp = RawValue(ctypes.c_float, 0.0)
 _processes = []
 _stream_thread = None
 
-def notify_overlord(hostname):
-  s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-  s.settimeout(0)
-  s.connect(('10.254.254.254', 1))
-  IP = s.getsockname()[0]
-  
-  requests.post(f"{OVERLORD_IP}/heartbeat",
-    json={"name": hostname, "ipv4": IP})
-
-_last_heartbeat_timestamp = None
-def heartbeat(interval_ms=1000):
-  global _last_heartbeat_timestamp
-  curr_time = time.time()
-  global _botname
-  if _botname and (_last_heartbeat_timestamp is None \
-                   or (curr_time - _last_heartbeat_timestamp) * 1000 >= interval_ms):
-    _last_heartbeat_timestamp = curr_time
-    notify_overlord(_botname)
-
-def start(host=None, port=9999, frame_shape=(360, 640, 3), source=True): # source=True for robot
+def start(host=None, port=9999, frame_shape=(360, 640, 3)):
   global _frame_shape, _frame, _botname, _host, _port, _running, _stream_thread
 
   if host is None:
@@ -254,16 +218,8 @@ def start(host=None, port=9999, frame_shape=(360, 640, 3), source=True): # sourc
         j = dict(json.load(fp))
         host = j.get("name", None)
 
-  if source:
-    # notify_overlord(host)
-    _botname = host
-    _host = "0.0.0.0"
-  # else:
-  #   if not "." in host:
-  #     _host = query_overlord(host)
-  #   else:
-  #     _host = host
-  
+  _botname = host
+  _host = "0.0.0.0"
   _port = port
   _frame_shape = frame_shape
   _frame = np.zeros((_frame_shape), np.uint8)
@@ -272,29 +228,22 @@ def start(host=None, port=9999, frame_shape=(360, 640, 3), source=True): # sourc
     print("stream is already running")
   else:
     _running.value = True
-    if source:
-      _stream_thread = threading.Thread(target=_stream_sender, args=(
-        _host, _port,
-        _frame, _frame_lock, _frame_shape, _encoding_parameters,
-        _connected, _running
-      ))
-    else:
-      _stream_thread = threading.Thread(target=_stream_receiver, args=(
-        _host, _port,
-        _frame, _frame_lock,
-        _connected, _running
-      ))
+    _stream_thread = threading.Thread(target=_stream_sender, args=(
+      _host, _port,
+      _frame, _frame_lock, _frame_shape, _encoding_parameters,
+      _connected, _running
+    ))
 
     # these are running under new processes since the threads are necessary for speed
     _processes.append(Process(target=_tx_worker, args=(
-      _host, _port + (1 if source else 2),
+      _host, _port + 1,
       _tx_buf, _tx_len, _tx_lock, _tx_ms_interval,
-      _connected, _running, source
+      _connected, _running
     )))
     _processes.append(Process(target=_rx_worker, args=(
-      _host, _port + (2 if source else 1),
+      _host, _port + 2,
       _rx_buf, _rx_len, _rx_lock, _rx_timestamp,
-      _connected, _running, source
+      _connected, _running
     )))
 
     _stream_thread.start()
