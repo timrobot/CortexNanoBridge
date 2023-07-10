@@ -22,8 +22,6 @@ from .device import (
     RealsenseCamera
 )
 from .lan import (
-    notify_overlord,
-    heartbeat,
     start,
     stop,
     set_frame,
@@ -36,4 +34,4 @@ from .vex_serial import (
     VexCortex
 )
 
-__version__ = '0.0.1'
+__version__ = '0.0.2'
