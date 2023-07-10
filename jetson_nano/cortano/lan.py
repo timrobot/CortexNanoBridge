@@ -45,8 +45,20 @@ def _stream_sender(host, port):
 
   while _running.value:
     if not is_connected:
-      conn, address = sock.accept()
-      _connected.value = is_connected = True
+      try:
+        ready_to_read, ready_to_write, in_error = select.select(
+          [sock, ], [], [], 1
+        )
+        for s in ready_to_read:
+          if s is sock:
+            conn, address = sock.accept()
+            _connected.value = is_connected = True
+
+      except Exception as e:
+        print("Warning:", e)
+        continue
+
+    if not is_connected: continue
 
     _frame_lock.acquire()
     frame = _frame
@@ -92,18 +104,19 @@ def _rxtx_worker(host, port, running: RawValue,
       data = b""
       gathering_payload = True
       try:
-        if source:
-          conn, address = sock.accept()
-          is_connected = True
-        else:
-          sock.connect((host, port))
-          conn = sock
-          is_connected = True
+        ready_to_read, ready_to_write, in_error = select.select(
+          [sock, ], [], [], 1
+        )
+        for s in ready_to_read:
+          if s is sock:
+            conn, address = sock.accept()
+            is_connected = True
+
       except Exception as e:
         print("Warning:", e)
-        time.sleep(1)
         continue
-
+        
+    if not is_connected: continue
     curr_time = time.time()
 
     try:
@@ -225,11 +238,11 @@ def stop():
       p.kill()
 
 def sig_handler(signum, frame):
-  if signum == signal.SIGINT or signum == signal.SIGTERM:
+  if signum == signal.SIGINT:
+    stop()
     sys.exit()
 
 signal.signal(signal.SIGINT, sig_handler)
-signal.signal(signal.SIGTERM, sig_handler)
 
 def set_frame(frame: np.ndarray):
   global _frame_lock, _frame
@@ -248,10 +261,10 @@ def recv():
   msg = json.loads(rx.decode())
 
   # safety mechanism
-  if time.time() - _rx_timestamp.value > 0.5: # 500ms cutoff time
-    msg = {
-      "motor": [0] * 10
-    }
+  # if time.time() - _rx_timestamp.value > 0.5: # 500ms cutoff time
+  #   msg = {
+  #     "motor": [0] * 10
+  #   }
 
   return msg
 
