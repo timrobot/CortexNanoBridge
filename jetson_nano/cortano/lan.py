@@ -239,7 +239,7 @@ def set_frame(frame: np.ndarray):
   _frame_lock.release()
   
 def recv():
-  global _rx_lock, _rx_buf, _rx_len
+  global _rx_lock, _rx_buf, _rx_len, _rx_timestamp
   _rx_lock.acquire()
   if _rx_len.value == 0:
     _rx_lock.release()
@@ -247,6 +247,13 @@ def recv():
   rx = bytearray(_rx_buf[:_rx_len.value])
   _rx_lock.release()
   msg = json.loads(rx.decode())
+
+  # safety mechanism
+  if time.time() - _rx_timestamp.value > 0.5: # 500ms cutoff time
+    msg = {
+      "motor": [0] * 10
+    }
+
   return msg
 
 def send(msg):
