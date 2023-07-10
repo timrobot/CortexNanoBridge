@@ -226,8 +226,7 @@ def stop():
 
 def sig_handler(signum, frame):
   if signum == signal.SIGINT or signum == signal.SIGTERM:
-    stop()
-  sys.exit()
+    sys.exit()
 
 signal.signal(signal.SIGINT, sig_handler)
 signal.signal(signal.SIGTERM, sig_handler)
