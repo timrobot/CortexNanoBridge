@@ -248,10 +248,10 @@ def recv():
   msg = json.loads(rx.decode())
 
   # safety mechanism
-  if time.time() - _rx_timestamp.value > 0.5: # 500ms cutoff time
-    msg = {
-      "motor": [0] * 10
-    }
+  # if time.time() - _rx_timestamp.value > 0.5: # 500ms cutoff time
+  #   msg = {
+  #     "motor": [0] * 10
+  #   }
 
   return msg
 
