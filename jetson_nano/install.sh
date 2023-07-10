@@ -8,6 +8,7 @@ sudo usermod -a -G dialout $USER
 sudo usermod -a -G tty $USER
 
 # worker enable
+sudo systemctl disable nvcortexnano.service
 sudo cp scripts/nvcortexnano.service /lib/systemd/system/
 sudo systemctl enable nvcortexnano.service
 sudo systemctl daemon-reload

@@ -22,8 +22,6 @@ from .device import (
     RealsenseCamera
 )
 from .lan import (
-    notify_overlord,
-    heartbeat,
     start,
     stop,
     set_frame,

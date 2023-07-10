@@ -2,9 +2,6 @@ import os
 import shutil
 
 if __name__ == "__main__":
-    for fname in os.listdir("/usr/local/OFF"):
-        shutil.copy(os.path.join("/usr/local/OFF", fname), "./cortano/")
-
     curr_dir = os.getcwd()
     with open(os.path.join(curr_dir, "scripts", "nvcortexnano.service"), "r") as fp:
         service_lines = [line.replace("/usr/local/cortano", os.path.join(curr_dir, "cortano")) \
