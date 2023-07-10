@@ -5,7 +5,7 @@ with open("requirements.txt", "r") as f:
 
 setup(
     name="cortano",
-    version="0.0.2",
+    version="0.0.3",
     packages=find_packages(exclude=["test"]),
     author="Timothy Yong",
     author_email="tyong_23@hotmail.com",
