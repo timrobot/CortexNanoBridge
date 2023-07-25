@@ -29,7 +29,7 @@ _frame = None
 _frame_lock = threading.Lock()
 _running = RawValue(ctypes.c_bool, False)
 _connected = RawValue(ctypes.c_bool, False)
-_encoding_parameters = [int(cv2.IMWRITE_JPEG_QUALITY), 90]
+_encoding_parameters = [int(cv2.IMWRITE_PNG_COMPRESSION), 1]
 _tx_ms_interval = .02 # 50Hz
 
 def _stream_sender(host, port):
@@ -65,7 +65,7 @@ def _stream_sender(host, port):
     _frame_lock.release()
 
     # frame = np.asarray(frame, np.uint8).reshape(shape)
-    result, frame = cv2.imencode('.jpg', frame, _encoding_parameters)
+    result, frame = cv2.imencode('.png', frame, _encoding_parameters) # changed
     data = pickle.dumps(frame, 0)
     size = len(data)
 
@@ -117,7 +117,6 @@ def _rxtx_worker(host, port, running: RawValue,
         continue
         
     if not is_connected: continue
-    curr_time = time.time()
 
     try:
       ready_to_read, ready_to_write, in_error = select.select(
@@ -139,6 +138,8 @@ def _rxtx_worker(host, port, running: RawValue,
       continue
     # retry connection...
     if not is_connected: continue
+
+    curr_time = time.time()
 
     if gathering_payload:
       if len(data) >= payload_size:
@@ -199,7 +200,7 @@ _rx_len = RawValue(ctypes.c_int32, 0)
 _rx_lock = Lock()
 
 _rx_timestamp = RawValue(ctypes.c_float, 0.0)
-_processes = []
+_rx_tx_worker = None
 _stream_thread = None
 
 def start(host, port=9999, frame_shape=(360, 640, 3)):
@@ -219,23 +220,21 @@ def start(host, port=9999, frame_shape=(360, 640, 3)):
     _running.value = True
     _stream_thread = threading.Thread(target=_stream_sender, args=(_host, _port))
 
-    _processes.append(Process(target=_rxtx_worker, args=(
+    _rx_tx_worker = Process(target=_rxtx_worker, args=(
       _host, _port + 1, _running,
       _rx_buf, _rx_len, _rx_lock, _rx_timestamp,
       _tx_buf, _tx_len, _tx_lock, _source
-    )))
+    ))
 
     _stream_thread.start()
-    for p in _processes:
-      p.start()
+    _rx_tx_worker.start()
 
 def stop():
-  global _running, _processes
+  global _running, _rx_tx_worker
   if _running.value:
     _running.value = False
     time.sleep(1)
-    for p in _processes:
-      p.kill()
+    _rx_tx_worker.kill()
 
 def sig_handler(signum, frame):
   if signum == signal.SIGINT:
