@@ -116,7 +116,7 @@ def _encode_frame(color, depth):
   h, w = x.shape
   x1 = np.right_shift(np.bitwise_and(x, 0x0000ff00), 8).astype(np.uint8)
   x2 = np.bitwise_and(x, 0x000000ff).astype(np.uint8)
-  frame = np.concatenate((np.zeros_like(x1), x2.reshape(h, w, 1), x2.reshape(h, w, 1)), axis=-1)
+  frame = np.concatenate((x1.reshape((h, w, 1)), x1.reshape((h, w, 1)), x2.reshape((h, w, 1))), axis=-1)
 
   frame = np.concatenate((color, frame), axis=1)
   return frame
