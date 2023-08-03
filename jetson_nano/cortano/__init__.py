@@ -25,8 +25,8 @@ from .lan import (
     start,
     stop,
     set_frame,
-    recv,
-    send    
+    read,
+    write    
 )
 from .vex_serial import (
     MLIMIT,

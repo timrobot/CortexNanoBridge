@@ -23,14 +23,15 @@ from multiprocessing import (
 )
 import ctypes
 
-_source = True
-_frame_shape = (360, 640, 3)
+from cortano import rxtx
+
+_frame_shape = (360, 640)
 _frame = None
 _frame_lock = threading.Lock()
 _running = RawValue(ctypes.c_bool, False)
 _connected = RawValue(ctypes.c_bool, False)
 _encoding_parameters = [int(cv2.IMWRITE_PNG_COMPRESSION), 1]
-_tx_ms_interval = .02 # 50Hz
+_tx_ms_interval = .0125 # 80Hz
 
 def _stream_sender(host, port):
   """
@@ -82,7 +83,7 @@ def _stream_sender(host, port):
         conn.close()
 
   sock.close()
-            
+
 def _rxtx_worker(host, port, running: RawValue,
         rxbuf: RawArray, rxlen: RawValue, rxlock: Lock, rxtime: RawValue,
         txbuf: RawArray, txlen: RawValue, txlock: Lock, source):
@@ -203,16 +204,12 @@ _rx_timestamp = RawValue(ctypes.c_float, 0.0)
 _rx_tx_worker = None
 _stream_thread = None
 
-def start(host, port=9999, frame_shape=(360, 640, 3)):
+def start(host, port=9999, frame_shape=(360, 640)):
   global _frame_shape, _frame, _host, _port, _running, _stream_thread
-  if _source:
-    _host = "0.0.0.0"
-  else:
-    _host = host
-  
+  _host = "0.0.0.0"
   _port = port
   _frame_shape = frame_shape
-  _frame = np.zeros((_frame_shape), np.uint8)
+  _frame = np.zeros((_frame_shape[0], _frame_shape[1] * 2, 3), np.uint8)
 
   if _running.value:
     print("Warning: stream is already running")
@@ -220,21 +217,23 @@ def start(host, port=9999, frame_shape=(360, 640, 3)):
     _running.value = True
     _stream_thread = threading.Thread(target=_stream_sender, args=(_host, _port))
 
-    _rx_tx_worker = Process(target=_rxtx_worker, args=(
-      _host, _port + 1, _running,
-      _rx_buf, _rx_len, _rx_lock, _rx_timestamp,
-      _tx_buf, _tx_len, _tx_lock, _source
-    ))
+    # _rx_tx_worker = Process(target=_rxtx_worker, args=(
+    #   _host, _port + 1, _running,
+    #   _rx_buf, _rx_len, _rx_lock, _rx_timestamp,
+    #   _tx_buf, _tx_len, _tx_lock, _source
+    # ))
 
-    _stream_thread.start()
+    _rx_tx_worker = Process(target=rxtx.app.run, args=( _host, _port + 1 ))
     _rx_tx_worker.start()
+    _stream_thread.start()
 
 def stop():
   global _running, _rx_tx_worker
   if _running.value:
     _running.value = False
+    _rx_tx_worker.terminate()
     time.sleep(1)
-    _rx_tx_worker.kill()
+    _rx_tx_worker.join()
 
 def sig_handler(signum, frame):
   if signum == signal.SIGINT:
@@ -243,13 +242,57 @@ def sig_handler(signum, frame):
 
 signal.signal(signal.SIGINT, sig_handler)
 
-def set_frame(frame: np.ndarray):
+def _encode_frame(color, depth):
+  x = depth
+  h, w = x.shape
+  x1 = np.right_shift(np.bitwise_and(x, 0x0000ff00), 8).astype(np.uint8)
+  x2 = np.bitwise_and(x, 0x000000ff).astype(np.uint8)
+  frame = np.concatenate((np.zeros_like(x1), x2.reshape(h, w, 1), x2.reshape(h, w, 1)), axis=-1)
+
+  frame = np.concatenate((color, frame), axis=1)
+  return frame
+
+def set_frame(color: np.ndarray, depth: np.ndarray):
   global _frame_lock, _frame
+  if color is None or depth is None: return
+  frame = _encode_frame(color, depth)
   _frame_lock.acquire()
   _frame = frame
   _frame_lock.release()
+
+def write(sensor_values, voltage_level=None):
+  """Send motor values to remote location
+
+  Args:
+      sensor_values (List[int]): sensor values
+      voltage_level (int, optional): Voltage of the robot. Defaults to None.
+  """
+  sensor_values = list(sensor_values)
+  rxtx._write_lock.acquire()
+  nsensors = rxtx._num_sensors.value = min(20, len(sensor_values))
+  rxtx._sensor_values[:nsensors] = sensor_values
+  rxtx._write_lock.release()
+
+def read():
+  """Return motor values that are read in
+
+  Returns:
+      List[int]: motor values
+  """
+  rxtx._read_lock.acquire()
+  motor_values = rxtx._motor_values[:]
+  rxtime = rxtx._last_rx_time.value
+  rxtx._read_lock.release()
+  if (time.time() - rxtime) > 1.0:
+    motor_values = [0] * 10
+  return motor_values
   
 def recv():
+  """**Deprecated.** Receive controls from socket
+
+  Returns:
+      str: message incoming from socket
+  """
   global _rx_lock, _rx_buf, _rx_len, _rx_timestamp
   _rx_lock.acquire()
   if _rx_len.value == 0:
@@ -268,6 +311,11 @@ def recv():
   return msg
 
 def send(msg):
+  """**Deprecated.** Send a message through socket.
+
+  Args:
+      msg (str): message to send
+  """
   global _tx_lock, _tx_buf, _tx_len
   _tx_lock.acquire()
   bytearr = json.dumps(msg).encode()

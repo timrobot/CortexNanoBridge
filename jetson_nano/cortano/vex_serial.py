@@ -3,7 +3,7 @@ import glob
 import serial
 import time
 from multiprocessing import Process, Array, RawValue, Value
-from ctypes import c_double, c_bool
+from ctypes import c_double, c_bool, c_int
 
 class IndexableArray:
   def __init__(self, length):
@@ -117,7 +117,7 @@ def _send_message(connection, vals):
   msg = msg[:-1] + ("%02x" % chk_sum) + "]\n"
   connection.write(msg.encode())
 
-def _serial_worker(path, baud, motors, sensors, enabled, readtime, keep_running):
+def _serial_worker(path, baud, motors, sensors, nsensors, enabled, readtime, keep_running):
   connection = serial.Serial(path, baud)
   rxbuf = ""
   last_tx_time = 0.0
@@ -126,8 +126,11 @@ def _serial_worker(path, baud, motors, sensors, enabled, readtime, keep_running)
     if rx:
       values = _decode_message(rx)
       if values:
+        sensors._data.acquire()
+        nsensors.value = len(values)
+        sensors._data[:len(values)] = values
+        sensors._data.release()
         readtime.acquire()
-        sensors.set(values)
         readtime.value = time.time()
         readtime.release()
 
@@ -160,6 +163,7 @@ class VexCortex:
     self._keep_running = RawValue(c_bool, True)
 
     self._sensor_values = IndexableArray(20)
+    self._num_sensors = Value(c_int, 0)
     self._last_rx_time = Value(c_double, 0.0)
     self._motor_values = IndexableArray(10)
     self._worker = None
@@ -176,9 +180,9 @@ class VexCortex:
       if not self.path:
         raise EnvironmentError(f"Could not find any path")
 
-    self._worker = Process(target=_serial_worker,args=(
+    self._worker = Process(target=_serial_worker, args=(
       self.path, self.baud, self._motor_values, self._sensor_values,
-      self._enabled, self._last_rx_time, self._keep_running))
+      self._num_sensors, self._enabled, self._last_rx_time, self._keep_running))
     self._worker.start()
 
   def stop(self):
@@ -227,24 +231,38 @@ class VexCortex:
 
   @property
   def motor(self):
-    """Return the reference to the motor array
+    """Reference to the motor array
 
     Returns:
-        ProtectedZeroList: reference to the motor values
+        IndexableArray: reference to the motor values
     """
     return self._motor_values
 
-  def motors(self):
-    """Get the motor values from the microcontroller
+  def motors(self, motor_values):
+    """Set motor values
 
-    Returns:
-        List[float]: a copy of the motor values
+    Args:
+        motor_values (List[int]): motor values
     """
-    return self._motor_values.clone()
+    self._motor_values.set(motor_values)
 
   @property
   def sensor(self):
+    """Reference to the sensor array
+
+    Returns:
+        IndexableArray: reference to the sensor values
+    """
     return self._sensor_values
 
   def sensors(self):
-    return self._sensor_values.clone()
+    """Get the sensor values
+
+    Returns:
+        List[int]: sensor values
+    """
+    self._sensor_values._data.acquire()
+    num_sensors = self._num_sensors.value
+    sensor_values = self._sensor_values._data[:num_sensors]
+    self._sensor_values._data.release()
+    return sensor_values
