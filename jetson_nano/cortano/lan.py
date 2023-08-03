@@ -24,7 +24,8 @@ _frame = None
 _frame_lock = threading.Lock()
 _running = RawValue(ctypes.c_bool, False)
 _connected = RawValue(ctypes.c_bool, False)
-_encoding_parameters = [int(cv2.IMWRITE_PNG_COMPRESSION), 1]
+_color_encoding_parameters = [int(cv2.IMWRITE_JPEG_QUALITY), 1]
+_depth_encoding_parameters = [int(cv2.IMWRITE_PNG_COMPRESSION), 1]
 
 def _stream_sender(host, port):
   """
@@ -55,11 +56,12 @@ def _stream_sender(host, port):
     if not is_connected: continue
 
     _frame_lock.acquire()
-    frame = _frame
+    color, depth = _frame
     _frame_lock.release()
 
-    result, frame = cv2.imencode('.png', frame, _encoding_parameters)
-    data = pickle.dumps(frame, 0)
+    result, color = cv2.imencode('.jpg', color, _color_encoding_parameters)
+    result, depth = cv2.imencode('.png', depth, _depth_encoding_parameters)
+    data = pickle.dumps((color, depth), 0)
     size = len(data)
 
     try:
@@ -86,7 +88,10 @@ def start(host, port=9999, frame_shape=(360, 640)):
   _host = "0.0.0.0"
   _port = port
   _frame_shape = frame_shape
-  _frame = np.zeros((_frame_shape[0], _frame_shape[1] * 2, 3), np.uint8)
+  _frame = (
+     np.zeros((_frame_shape[0], _frame_shape[1], 3), np.uint8),
+     np.zeros((_frame_shape[0], _frame_shape[1]), np.uint16)
+  )
 
   if _running.value:
     print("Warning: stream is already running")
@@ -124,9 +129,9 @@ def _encode_frame(color, depth):
 def set_frame(color: np.ndarray, depth: np.ndarray):
   global _frame_lock, _frame
   if color is None or depth is None: return
-  frame = _encode_frame(color, depth)
+  # frame = _encode_frame(color, depth)
   _frame_lock.acquire()
-  _frame = frame
+  _frame = (color, depth)
   _frame_lock.release()
 
 def write(sensor_values, voltage_level=None):
