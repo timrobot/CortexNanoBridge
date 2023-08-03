@@ -24,7 +24,7 @@ _frame = None
 _frame_lock = threading.Lock()
 _running = RawValue(ctypes.c_bool, False)
 _connected = RawValue(ctypes.c_bool, False)
-_color_encoding_parameters = [int(cv2.IMWRITE_JPEG_QUALITY), 1]
+_color_encoding_parameters = [int(cv2.IMWRITE_JPEG_QUALITY), 90]
 _depth_encoding_parameters = [int(cv2.IMWRITE_PNG_COMPRESSION), 1]
 
 def _stream_sender(host, port):
