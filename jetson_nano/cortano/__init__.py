@@ -26,7 +26,10 @@ from .lan import (
     stop,
     set_frame,
     read,
-    write    
+    write,
+    control,
+    readtime,
+    check_alive
 )
 from .vex_serial import (
     MLIMIT,
@@ -35,7 +38,8 @@ from .vex_serial import (
 )
 from .rxtx import (
     start_rxtx,
-    stop_rxtx
+    stop_rxtx,
+    set_passthrough
 )
 
 __version__ = '0.0.3'

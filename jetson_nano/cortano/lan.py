@@ -137,10 +137,16 @@ def write(sensor_values, voltage_level=None):
       voltage_level (int, optional): Voltage of the robot. Defaults to None.
   """
   sensor_values = [int(x) for x in sensor_values]
-  rxtx._write_lock.acquire()
+  rxtx._sensor_values.acquire()
   nsensors = rxtx._num_sensors.value = min(20, len(sensor_values))
   rxtx._sensor_values[:nsensors] = sensor_values
-  rxtx._write_lock.release()
+  rxtx._sensor_values.release()
+
+def readtime():
+  rxtx._last_rx_time.acquire()
+  rxtime = rxtx._last_rx_time.value
+  rxtx._last_rx_time.release()
+  return rxtime
 
 def read():
   """Return motor values that are read in
@@ -148,10 +154,19 @@ def read():
   Returns:
       List[int]: motor values
   """
-  rxtx._read_lock.acquire()
+  rxtx._motor_values.acquire()
   motor_values = rxtx._motor_values[:]
-  rxtime = rxtx._last_rx_time.value
-  rxtx._read_lock.release()
-  if (time.time() - rxtime) > 1.0: # timeout 1s before setting motors to 0
+  rxtx._motor_values.release()
+  rxtime = readtime()
+  if (time.time() - rxtime) > 0.5: # timeout 0.5s before setting motors to 0
     motor_values = [0] * 10
   return motor_values
+
+def check_alive():
+  if rxtx.controlled_entity is None: return
+  rxtime = readtime()
+  if (time.time() - rxtime) > 0.5: # timeout 0.5s before setting motors to 0
+    rxtx.controlled_entity.motors([0] * 10)
+
+def control(robot):
+  rxtx.set_passthrough(robot)
