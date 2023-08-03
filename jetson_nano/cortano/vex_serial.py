@@ -7,7 +7,7 @@ from ctypes import c_double, c_bool, c_int
 
 class IndexableArray:
   def __init__(self, length):
-    self._data = Array(c_double, length)
+    self._data = Array(c_int, length)
 
   def __len__(self):
     return len(self._data)

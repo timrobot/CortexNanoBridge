@@ -92,7 +92,7 @@ def start(host, port=9999, frame_shape=(360, 640)):
     print("Warning: stream is already running")
   else:
     _running.value = True
-    rxtx.start_rxtx(host, port + 1)
+    rxtx.start_rxtx(_host, _port + 1)
 
     _stream_thread = threading.Thread(target=_stream_sender, args=(_host, _port))
     _stream_thread.start()
@@ -136,7 +136,7 @@ def write(sensor_values, voltage_level=None):
       sensor_values (List[int]): sensor values
       voltage_level (int, optional): Voltage of the robot. Defaults to None.
   """
-  sensor_values = list(sensor_values)
+  sensor_values = [int(x) for x in sensor_values]
   rxtx._write_lock.acquire()
   nsensors = rxtx._num_sensors.value = min(20, len(sensor_values))
   rxtx._sensor_values[:nsensors] = sensor_values
