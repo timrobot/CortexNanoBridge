@@ -33,5 +33,9 @@ from .vex_serial import (
     IndexableArray,
     VexCortex
 )
+from .rxtx import (
+    start_rxtx,
+    stop_rxtx
+)
 
 __version__ = '0.0.3'
