@@ -107,34 +107,22 @@ class RealsenseCamera:
       self.pipeline.stop()
       self.pipeline = None
 
-  def read(self): # will also store in buffer to be read
+  def read(self, scale=False): # will also store in buffer to be read
     ret, color, depth = self.capture()
     if not ret:
-      return np.zeros((self.height, self.width, 3), dtype=np.uint8), np.zeros((self.height, self.width), dtype=np.float32)
-    depth = depth.astype(np.float32) * self.depth_scale
+      return np.zeros((self.height, self.width, 3), dtype=np.uint8), \
+             np.zeros((self.height, self.width), dtype=np.float32)
+    if scale:
+      depth = depth.astype(np.float32) * self.depth_scale
     # color = np.ascontiguousarray(np.flip(color, axis=-1))
 
     return color, depth
-  
-  def get_combined_frame(self):
-    ret, color, depth = self.capture()
-    if not ret:
-      return np.zeros((self.height, self.width * 2, 3), dtype=np.uint8)
-    
-    x = depth
-    h, w = x.shape
-    x1 = np.right_shift(np.bitwise_and(x, 0x0000ff00), 8).astype(np.uint8)
-    x2 = np.bitwise_and(x, 0x000000ff).astype(np.uint8)
-    frame = np.concatenate((x1.reshape((h, w, 1)), x1.reshape((h, w, 1)), x2.reshape((h, w, 1))), axis=-1)
-
-    frame = np.concatenate((color, frame), axis=1)
-    return frame
 
   def depth2rgb(self, depth):
     if depth.dtype == np.uint16:
-      return cv2.applyColorMap(np.sqrt(depth).astype(np.uint8), cv2.COLORMAP_HSV)
+      return cv2.applyColorMap(np.sqrt(depth).astype(np.uint8), cv2.COLORMAP_JET)
     else:
-      return cv2.applyColorMap(np.floor(np.sqrt(depth / self.depth_scale)).astype(np.uint8), cv2.COLORMAP_HSV)
+      return cv2.applyColorMap(np.floor(np.sqrt(depth / self.depth_scale)).astype(np.uint8), cv2.COLORMAP_JET)
 
   def view(self):
     color, depth = self.read()

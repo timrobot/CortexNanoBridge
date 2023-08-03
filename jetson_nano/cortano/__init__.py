@@ -25,13 +25,21 @@ from .lan import (
     start,
     stop,
     set_frame,
-    recv,
-    send    
+    read,
+    write,
+    control,
+    readtime,
+    check_alive
 )
 from .vex_serial import (
     MLIMIT,
     IndexableArray,
     VexCortex
+)
+from .rxtx import (
+    start_rxtx,
+    stop_rxtx,
+    set_passthrough
 )
 
 __version__ = '0.0.3'
