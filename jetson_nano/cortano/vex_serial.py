@@ -142,6 +142,8 @@ def _serial_worker(path, baud, motors, sensors, nsensors, enabled, readtime, kee
       if enabled.value:
         values = motors.clone()
       _send_message(connection, values)
+
+    time.sleep(0.005) # throttle to prevent CPU overload
   
   motors.set([0] * len(motors))
   for _ in range(10):
