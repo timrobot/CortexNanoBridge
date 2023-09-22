@@ -116,20 +116,9 @@ def sig_handler(signum, frame):
 
 signal.signal(signal.SIGINT, sig_handler)
 
-def _encode_frame(color, depth):
-  x = depth
-  h, w = x.shape
-  x1 = np.right_shift(np.bitwise_and(x, 0x0000ff00), 8).astype(np.uint8)
-  x2 = np.bitwise_and(x, 0x000000ff).astype(np.uint8)
-  frame = np.concatenate((x1.reshape((h, w, 1)), x1.reshape((h, w, 1)), x2.reshape((h, w, 1))), axis=-1)
-
-  frame = np.concatenate((color, frame), axis=1)
-  return frame
-
 def set_frame(color: np.ndarray, depth: np.ndarray):
   global _frame_lock, _frame
   if color is None or depth is None: return
-  # frame = _encode_frame(color, depth)
   _frame_lock.acquire()
   _frame = (color, depth)
   _frame_lock.release()
