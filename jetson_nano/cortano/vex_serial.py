@@ -97,13 +97,14 @@ def _receive_data(connection, rxbuf):
   if in_waiting == 0:
     return None, rxbuf
   buf = connection.read(in_waiting)
+  msg = None
   if buf:
     rxbuf += buf.decode()
     end = rxbuf.find(']')
     if end != -1:
       start = rxbuf.find('[', 0, end)
       if start != -1 and '[' not in rxbuf[start+1:end]:
-        msg =  rxbuf[start:end+1]
+        msg = rxbuf[start:end+1]
       rxbuf = rxbuf[end+1:]
   return msg, rxbuf
 
