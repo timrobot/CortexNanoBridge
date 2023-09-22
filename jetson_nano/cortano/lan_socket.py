@@ -199,7 +199,7 @@ def run_async_rgbd(host, port, run, fshape, fcolor, fdepth, flock, cam):
     main_loop.run_until_complete(main_loop.shutdown_asyncgens())
     main_loop.close()
 
-def start(port=9999, frame_shape=(360, 640), target=None, camera=None):
+def start(host="", port=9999, frame_shape=(360, 640), target=None, camera=None):
   global _robot_entity, _camera_entity, _running, _stream_host, _stream_port
   global _motor_values, _sensor_values, _num_sensors, _last_rx_time
   global _host, _port, _frame_shape, _frame_color, _frame_depth, _frame_lock
