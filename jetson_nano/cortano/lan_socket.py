@@ -76,6 +76,8 @@ async def streamer_source():
       _frame_lock.release()
       h, w = _frame_shape
 
+    if host == "0.0.0.0": continue
+
     # consider testing the following using async with main_loop.create_task
     _, color = cv2.imencode('.png', color, _color_encoding_parameters)
     _, depth = cv2.imencode('.png', depth, _depth_encoding_parameters)
