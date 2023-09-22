@@ -1,6 +1,5 @@
-
 import asyncio
-from ctypes import ( c_double, c_int, c_bool, c_uint8, c_uint16, c_wchar_p )
+from ctypes import ( c_double, c_int, c_bool, c_uint8, c_uint16 )
 import json
 from multiprocessing import (
   Process,
@@ -34,7 +33,7 @@ _frame_depth = None
 _frame_lock = Lock()
 _frame_color_np = None
 _frame_depth_np = None
-_color_encoding_parameters = [int(cv2.IMWRITE_PNG_COMPRESSION), 1]
+_color_encoding_parameters = [int(cv2.IMWRITE_JPEG_QUALITY), 90]
 _depth_encoding_parameters = [int(cv2.IMWRITE_PNG_COMPRESSION), 1]
 
 main_loop = None
@@ -52,11 +51,15 @@ _stream_port = None
 _rxtx_process = None
 _rgbd_process = None
 
+# because the jetson doesn't properly support wchar
+def ip2l(x): return [int(b) for b in x.split('.')]
+def l2ip(x): return "%d.%d.%d.%d" % tuple(x)
+
 async def streamer_source():
   # we can use this in order to prevent data transfer latencies or data synchronization issues
   global _running, _camera_entity, _stream_port, main_loop
   _stream_host.acquire()
-  host = _stream_host.value
+  host = l2ip(_stream_host)
   port = _stream_port.value
   _stream_host.release()
 
@@ -76,10 +79,15 @@ async def streamer_source():
       _frame_lock.release()
       h, w = _frame_shape
 
-    if host == "0.0.0.0": continue
+    if host == "0.0.0.0":
+      _stream_host.acquire()
+      host = l2ip(_stream_host)
+      port = _stream_port.value
+      _stream_host.release()
+      continue
 
     # consider testing the following using async with main_loop.create_task
-    _, color = cv2.imencode('.png', color, _color_encoding_parameters)
+    _, color = cv2.imencode('.jpg', color, _color_encoding_parameters)
     _, depth = cv2.imencode('.png', depth, _depth_encoding_parameters)
     data = pickle.dumps((color, depth), 0)
     try:
@@ -88,7 +96,7 @@ async def streamer_source():
     except Exception as e:
       # try to get the latest ipv4
       _stream_host.acquire()
-      host = _stream_host.value
+      host = l2ip(_stream_host)
       port = _stream_port.value
       _stream_host.release()
 
@@ -126,7 +134,7 @@ async def handle_request(websocket, path):
       await handle_rxtx(request, websocket)
     if "ipv4" in req:
       _stream_host.acquire()
-      _stream_host.value = request["ipv4"]
+      _stream_host[:] = ip2l(request["ipv4"])
       _stream_host.release()
 
 async def request_handler(host, port):
@@ -222,7 +230,7 @@ def start(host="", port=9999, frame_shape=(360, 640), target=None, camera=None):
   _host = "0.0.0.0"
   _port = port
   _running = Value(c_bool, True)
-  _stream_host = Value(c_wchar_p, _host)
+  _stream_host = Array(c_int, 4)
   _stream_port = Value(c_int, port + 1)
   _frame_shape = frame_shape
   _frame_color = RawArray(c_uint8, frame_shape[0] * frame_shape[1] * 3)
