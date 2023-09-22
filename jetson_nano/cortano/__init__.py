@@ -27,7 +27,6 @@ from .lan import (
     set_frame,
     read,
     write,
-    control,
     readtime,
     check_alive
 )
@@ -36,10 +35,5 @@ from .vex_serial import (
     IndexableArray,
     VexCortex
 )
-from .rxtx import (
-    start_rxtx,
-    stop_rxtx,
-    set_passthrough
-)
 
-__version__ = '0.0.4'
+__version__ = '0.0.5'

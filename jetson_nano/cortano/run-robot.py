@@ -2,6 +2,8 @@ from cortano import VexCortex
 from cortano import RealsenseCamera
 
 if __name__ == "__main__":
+  # Note! To run this script locally on your robot, you must disable the nvcortexnano.service
+  # Go to ../scripts and then run ./disable-autostart.sh
   cam = RealsenseCamera()
   robot = VexCortex("/dev/ttyUSB0")
 

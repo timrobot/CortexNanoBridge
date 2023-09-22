@@ -93,15 +93,18 @@ def _decode_message(msg):
     return None
 
 def _receive_data(connection, rxbuf):
+  in_waiting = connection.in_waiting
+  if in_waiting == 0:
+    return None, rxbuf
+  buf = connection.read(in_waiting)
   msg = None
-  buf = connection.read_all()
   if buf:
     rxbuf += buf.decode()
     end = rxbuf.find(']')
     if end != -1:
       start = rxbuf.find('[', 0, end)
       if start != -1 and '[' not in rxbuf[start+1:end]:
-        msg =  rxbuf[start:end+1]
+        msg = rxbuf[start:end+1]
       rxbuf = rxbuf[end+1:]
   return msg, rxbuf
 
@@ -116,24 +119,45 @@ def _send_message(connection, vals):
     chk_sum ^= ord(c)
   msg = msg[:-1] + ("%02x" % chk_sum) + "]\n"
   connection.write(msg.encode())
+  connection.flush()
 
-def _serial_worker(path, baud, motors, sensors, nsensors, enabled, readtime, keep_running):
-  connection = serial.Serial(path, baud)
+def _serial_worker(path, baud, motors, sensors, nsensors, enabled, readtime, keep_running, connected):
   rxbuf = ""
-  last_tx_time = 0.0
+  last_tx_time = time.time()
   while keep_running.value:
-    rx, rxbuf = _receive_data(connection, rxbuf)
-    if rx:
-      values = _decode_message(rx)
-      if values:
-        sensors._data.acquire()
-        nsensors.value = len(values)
-        sensors._data[:len(values)] = values
-        sensors._data.release()
-        readtime.acquire()
-        readtime.value = time.time()
-        readtime.release()
+    if not connected.value:
+      try:
+        connection = serial.Serial(path, baud)
+        connection.reset_output_buffer()
+        connection.reset_input_buffer()
+        connected.value = True
+      except Exception as e:
+        connection.close()
+        connected.value = False
+        time.sleep(0.01)
 
+    if not connected.value: continue
+    try:
+      rx, rxbuf = _receive_data(connection, rxbuf)
+      if rx:
+        values = _decode_message(rx)
+        if values:
+          sensors._data.acquire()
+          nsensors.value = len(values)
+          sensors._data[:len(values)] = values
+          sensors._data.release()
+          readtime.acquire()
+          readtime.value = time.time()
+          readtime.release()
+    except serial.SerialException as e:
+      #There is no new data from serial port
+      pass
+    except TypeError as e:
+      #Disconnect of USB->UART occured
+      connection.close()
+      connected.value = False
+
+    if not connected.value: continue
     # outgoing 50hz
     t = time.time()
     if t - last_tx_time > 0.02:
@@ -141,7 +165,11 @@ def _serial_worker(path, baud, motors, sensors, nsensors, enabled, readtime, kee
       values = [0] * len(motors)
       if enabled.value:
         values = motors.clone()
-      _send_message(connection, values)
+      try:
+        _send_message(connection, values)
+      except serial.SerialTimeoutException as e:
+        connection.close()
+        connected.value = False
 
     time.sleep(0.005) # throttle to prevent CPU overload
   
@@ -163,6 +191,7 @@ class VexCortex:
     self.baud = baud
     self._enabled = Value(c_bool, True)
     self._keep_running = RawValue(c_bool, True)
+    self._connected = RawValue(c_bool, False)
 
     self._sensor_values = IndexableArray(20)
     self._num_sensors = Value(c_int, 0)
@@ -184,7 +213,7 @@ class VexCortex:
 
     self._worker = Process(target=_serial_worker, args=(
       self.path, self.baud, self._motor_values, self._sensor_values,
-      self._num_sensors, self._enabled, self._last_rx_time, self._keep_running))
+      self._num_sensors, self._enabled, self._last_rx_time, self._keep_running, self._connected))
     self._worker.start()
 
   def stop(self):
@@ -201,7 +230,7 @@ class VexCortex:
   def _autofind_path(self): # todo: do a more dynamic path finder using prefix
     # https://stackoverflow.com/questions/12090503/listing-available-com-ports-with-python?msclkid=bafb28c0ceb211ec97c565cfa73ea467
     if sys.platform.startswith('win'):
-      paths = ["COM%s" % (i + 1) for i in range(256)]
+      paths = ["COM%s" % (i + 1) for i in range(128)]
     elif sys.platform.startswith('linux'):
       paths = glob.glob("/dev/ttyUSB*") + glob.glob("/dev/ttyACM*")
     else:
