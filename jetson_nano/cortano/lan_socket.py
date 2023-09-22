@@ -16,8 +16,8 @@ import websockets
 import numpy as np
 import signal
 import sys
-import uvloop
-asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+# import uvloop
+# asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 from .device import RealsenseCamera
 
