@@ -62,6 +62,9 @@ class RealsenseCamera:
 
     self.hfov = np.degrees(np.arctan2(self.width  / 2, self.fx)) * 2
     self.vfov = np.degrees(np.arctan2(self.height / 2, self.fy)) * 2
+    self.pipeline = None
+    self.depth_scale = 0.001
+    self.align = None
     if autostart:
       self.open()
 
