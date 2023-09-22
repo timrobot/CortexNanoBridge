@@ -27,7 +27,6 @@ from .lan import (
     set_frame,
     read,
     write,
-    control,
     readtime,
     check_alive
 )
