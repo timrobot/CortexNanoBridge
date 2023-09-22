@@ -84,7 +84,11 @@ async def streamer_source():
       async with websockets.connect(f"ws://{host}:{port}") as websocket:
         await websocket.send(data)
     except Exception as e:
-      pass # do nothing I guess, just keep trying
+      # try to get the latest ipv4
+      _stream_host.acquire()
+      host = _stream_host.value
+      port = _stream_port.value
+      _stream_host.release()
 
 async def handle_rxtx(req, websocket):
   global _last_rx_time, _sensor_values, _num_sensors
@@ -118,10 +122,9 @@ async def handle_request(websocket, path):
     request = json.loads(req)
     if "motors" in request:
       await handle_rxtx(request, websocket)
-    elif "ipv4" in req and "port" in req:
+    if "ipv4" in req:
       _stream_host.acquire()
       _stream_host.value = request["ipv4"]
-      _stream_port.value = request["port"]
       _stream_host.release()
 
 async def request_handler(host, port):
