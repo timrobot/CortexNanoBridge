@@ -91,7 +91,7 @@ async def streamer_source():
     _, depth = cv2.imencode('.png', depth, _depth_encoding_parameters)
     data = pickle.dumps((color, depth), 0)
     try:
-      async with websockets.connect(f"ws://{host}:{port}") as websocket:
+      async with websockets.connect("ws://" + host + ":" + str(port)) as websocket:
         await websocket.send(data)
     except Exception as e:
       # try to get the latest ipv4
