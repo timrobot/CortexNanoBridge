@@ -5,6 +5,7 @@ import numpy as np
 import json
 import multiprocessing
 import os
+import time
 import pyrealsense2 as rs
 from typing import Tuple
 import cv2
@@ -68,6 +69,10 @@ class RealsenseCamera:
     if autostart:
       self.open()
 
+    # just to make sure camera is still working
+    self.last_frame_received = 0.0
+    self.last_frame_reset = 0.5 # 500,s reset camera if nothing received
+
   def open(self):
     try:
       self.pipeline = rs.pipeline()
@@ -122,6 +127,9 @@ class RealsenseCamera:
     return False, None, None
 
   def __del__(self):
+    self.close()
+
+  def close(self):
     if self.pipeline:
       self.pipeline.stop()
       self.pipeline = None
@@ -129,8 +137,13 @@ class RealsenseCamera:
   def read(self, scale=False): # will also store in buffer to be read
     ret, color, depth = self.capture()
     if not ret:
+      if time.time() - self.last_frame_received > self.last_frame_reset:
+        self.close()
+        self.open()
       return np.zeros((self.height, self.width, 3), dtype=np.uint8), \
              np.zeros((self.height, self.width), dtype=np.float32)
+    
+    self.last_frame_received = time.time()
     if scale:
       depth = depth.astype(np.float32) * self.depth_scale
     # color = np.ascontiguousarray(np.flip(color, axis=-1))
