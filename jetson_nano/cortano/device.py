@@ -10,6 +10,15 @@ import pyrealsense2 as rs
 from typing import Tuple
 import cv2
 from . import vex_serial
+import logging
+
+logging.basicConfig(filename="/var/log/cortano.log",
+                    filemode='a',
+                    format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
+                    datefmt='%H:%M:%S',
+                    level=logging.DEBUG)
+
+logging.info("Starting device log...")
 
 PORT1  =  0
 PORT2  =  1
@@ -71,7 +80,7 @@ class RealsenseCamera:
 
     # just to make sure camera is still working
     self.last_frame_received = 0.0
-    self.last_frame_reset = 0.5 # 500,s reset camera if nothing received
+    self.last_frame_reset = 0.5 # 500ms reset camera if nothing received
 
   def open(self):
     try:
@@ -120,6 +129,7 @@ class RealsenseCamera:
         return True, color_image, depth_image
 
       except:
+        logging.warning("Pipeline does not exist!")
         if self.pipeline:
           self.pipeline.stop()
           self.pipeline = None
@@ -137,11 +147,12 @@ class RealsenseCamera:
   def read(self, scale=False): # will also store in buffer to be read
     ret, color, depth = self.capture()
     if not ret:
+      logging.warning("Could not access proper frames")
       if time.time() - self.last_frame_received > self.last_frame_reset:
+        logging.warning("Resetting pipeline since 0.5s passed")
         self.close()
-        self.open()
       return np.zeros((self.height, self.width, 3), dtype=np.uint8), \
-             np.zeros((self.height, self.width), dtype=np.float32)
+              np.zeros((self.height, self.width), dtype=np.float32)
     
     self.last_frame_received = time.time()
     if scale:
