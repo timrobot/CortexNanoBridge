@@ -81,8 +81,7 @@ class RTCStreamEntity:
     self.track = OpenCVStreamTrack(camera_path)
     self.host = host
     self.stream_port = stream_port
-    self.loop = loop
-    self.running = False
+    self.loop = None
     self.stream_task = None
 
   async def offer(self, req):
@@ -120,10 +119,7 @@ class RTCStreamEntity:
     RTCStreamEntity.pcs.clear()
 
   def run(self):
-    if self.loop is None:
-      self.loop = asyncio.new_event_loop()
-      self.running = True
-
+    self.loop = asyncio.new_event_loop()
     self.stream_task = self.loop.create_task(
       web._run_app(
         self.app,
@@ -134,17 +130,16 @@ class RTCStreamEntity:
       )
     )
 
-    if self.running:
-      try:
-        asyncio.set_event_loop(self.loop)
-        self.loop.run_until_complete(self.stream_task)
-      except (web_runner.GracefulExit, KeyboardInterrupt):
-        pass
-      finally:
-        web._cancel_tasks((self.stream_task,), self.loop)
-        web._cancel_tasks(helpers.all_tasks(self.loop), self.loop)
-        self.loop.run_until_complete(self.loop.shutdown_asyncgens())
-        self.loop.close()
+    try:
+      asyncio.set_event_loop(self.loop)
+      self.loop.run_until_complete(self.stream_task)
+    except (web_runner.GracefulExit, KeyboardInterrupt):
+      pass
+    finally:
+      web._cancel_tasks((self.stream_task,), self.loop)
+      web._cancel_tasks(helpers.all_tasks(self.loop), self.loop)
+      self.loop.run_until_complete(self.loop.shutdown_asyncgens())
+      self.loop.close()
 
 if __name__ == "__main__":
   streamer = RTCStreamEntity("/dev/video0")
