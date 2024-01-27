@@ -122,14 +122,7 @@ def start_streamer(device="/dev/video0", host="0.0.0.0", stream_port=8080):
 
   loop = asyncio.new_event_loop()
   stream_task = loop.create_task(
-    web._run_app(
-      app,
-      host=host,
-      port=stream_port,
-      ssl_context=None,
-      access_log=None
-    )
-  )
+    web._run_app(app, host=host, port=stream_port, access_log=None))
 
   try:
     asyncio.set_event_loop(loop)
