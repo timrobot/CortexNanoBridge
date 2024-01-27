@@ -11,14 +11,17 @@ from aiortc.rtcrtpsender import RTCRtpSender
 from typing import Tuple
 import fractions
 
+######################################################################
+#                       Video Capture Track
+######################################################################
+
 FPS = 30
 VIDEO_CLOCK_RATE = 90000
 VIDEO_PTIME = 1 / FPS
 VIDEO_TIME_BASE = fractions.Fraction(1, VIDEO_CLOCK_RATE)
-
 class MediaStreamError(Exception): pass
 
-class OpenCVStreamTrack(MediaStreamTrack):
+class VideoCaptureTrack(MediaStreamTrack):
   kind = "video"
   _start: float
   _timestamp: int
@@ -51,6 +54,13 @@ class OpenCVStreamTrack(MediaStreamTrack):
       frame.time_base = time_base
     return frame
 
+######################################################################
+#                       WebRTC Streamer
+######################################################################
+
+pcs = set()
+media_track = None
+
 async def index(request):
     content = open("index.html", "r").read()
     return web.Response(content_type="text/html", text=content)
@@ -67,80 +77,70 @@ def force_codec(pc, sender, forced_codec):
         [codec for codec in codecs if codec.mimeType == forced_codec]
     )
 
-class RTCStreamEntity:
-  pcs = set()
-  rpc_calls = {}
+async def offer(req):
+  params = await req.json()
 
-  def __init__(self, camera_path="/dev/video0", host="0.0.0.0", stream_port=8080, loop=None):
-    self.app = web.Application()
-    self.app.on_shutdown.append(self.on_shutdown)
-    self.app.router.add_get("/", index)
-    self.app.router.add_get("/client.js", js)
-    self.app.router.add_post("/offer", self.offer)
-    
-    self.track = OpenCVStreamTrack(camera_path)
-    self.host = host
-    self.stream_port = stream_port
-    self.loop = None
-    self.stream_task = None
+  pc = RTCPeerConnection()
+  pcs.add(pc)
 
-  async def offer(self, req):
-    params = await req.json()
+  @pc.on("connectionstatechange")
+  async def on_connectionstatechange():
+    print("Connection state change is %s" % pc.connectionState)
+    if pc.connectionState == "failed":
+      await pc.close()
+      pcs.discard(pc)
 
-    pc = RTCPeerConnection()
-    RTCStreamEntity.pcs.add(pc)
+  desc = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
+  video_sender = pc.addTrack(media_track)
+  force_codec(pc, video_sender, "video/H264")
 
-    @pc.on("connectionstatechange")
-    async def on_connectionstatechange():
-      print("Connection state change is %s" % pc.connectionState)
-      if pc.connectionState == "failed":
-        await pc.close()
-        RTCStreamEntity.pcs.discard(pc)
+  await pc.setRemoteDescription(desc)
+  answer = await pc.createAnswer()
+  await pc.setLocalDescription(answer)
 
-    desc = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
-    video_sender = pc.addTrack(self.track)
-    force_codec(pc, video_sender, "video/H264")
+  return web.Response(
+    content_type="application/json",
+    text=json.dumps({
+        "sdp":  pc.localDescription.sdp,
+        "type": pc.localDescription.type
+      })
+  )
 
-    await pc.setRemoteDescription(desc)
-    answer = await pc.createAnswer()
-    await pc.setLocalDescription(answer)
+async def on_shutdown(app):
+  coros = [pc.close() for pc in pcs]
+  await asyncio.gather(*coros)
+  pcs.clear()
 
-    return web.Response(
-      content_type="application/json",
-      text=json.dumps({
-          "sdp":  pc.localDescription.sdp,
-          "type": pc.localDescription.type
-        })
+def start_streamer(device="/dev/video0", host="0.0.0.0", stream_port=8080):
+  global media_track
+  media_track = VideoCaptureTrack(device)
+  app = web.Application()
+  app.on_shutdown.append(on_shutdown)
+  app.router.add_get("/", index)
+  app.router.add_get("/client.js", js)
+  app.router.add_post("/offer", offer)
+
+  loop = asyncio.new_event_loop()
+  stream_task = loop.create_task(
+    web._run_app(
+      app,
+      host=host,
+      port=stream_port,
+      ssl_context=None,
+      access_log=None
     )
+  )
 
-  async def on_shutdown(self, app):
-    coros = [pc.close() for pc in RTCStreamEntity.pcs]
-    await asyncio.gather(*coros)
-    RTCStreamEntity.pcs.clear()
-
-  def run(self):
-    self.loop = asyncio.new_event_loop()
-    self.stream_task = self.loop.create_task(
-      web._run_app(
-        self.app,
-        host=self.host,
-        port=self.stream_port,
-        ssl_context=None,
-        access_log=None
-      )
-    )
-
-    try:
-      asyncio.set_event_loop(self.loop)
-      self.loop.run_until_complete(self.stream_task)
-    except (web_runner.GracefulExit, KeyboardInterrupt):
-      pass
-    finally:
-      web._cancel_tasks((self.stream_task,), self.loop)
-      web._cancel_tasks(helpers.all_tasks(self.loop), self.loop)
-      self.loop.run_until_complete(self.loop.shutdown_asyncgens())
-      self.loop.close()
+  try:
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(stream_task)
+  except (web_runner.GracefulExit, KeyboardInterrupt):
+    pass
+  finally:
+    web._cancel_tasks((stream_task,), loop)
+    web._cancel_tasks(helpers.all_tasks(loop), loop)
+    loop.run_until_complete(loop.shutdown_asyncgens())
+    loop.close()
 
 if __name__ == "__main__":
-  streamer = RTCStreamEntity("/dev/video0")
-  streamer.run()
+  start_streamer("/dev/video0")
