@@ -191,6 +191,8 @@ def start(port=9999, robot=None, realsense: RealsenseCamera=None, camera: cv2.Vi
   robot_entity = robot
   camera_entity = realsense
   camera2_entity = camera
+  if camera2_entity is not None:
+    cam2_enable.value = True
 
   if robot_entity is not None:
     motor_values  = robot_entity._motor_values._data
