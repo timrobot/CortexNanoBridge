@@ -4,6 +4,7 @@ import serial
 import time
 from multiprocessing import Process, Array, RawValue, Value
 from ctypes import c_double, c_bool, c_int
+import logging
 
 class IndexableArray:
   def __init__(self, length):
@@ -65,7 +66,10 @@ def _decode_message(msg):
     chk_sum ^= ord(msg[-1])
     if chk_sum != 0: return None
 
-    ptr = 4
+    voltage_level = int(msg[4:7], base=16)
+    sensor_values.append(voltage_level) # the first value will always be the voltage level
+
+    ptr = 8
     while ptr < length - 3:
       _type = msg[ptr]
       if _type == 'w':
@@ -89,7 +93,7 @@ def _decode_message(msg):
     return sensor_values
 
   except ValueError:
-    print("Error: could not decode message, incorrect hexstring read")
+    logging.error("Could not decode message, incorrect hexstring read")
     return None
 
 def _receive_data(connection, rxbuf):
@@ -193,7 +197,7 @@ class VexCortex:
     self._keep_running = RawValue(c_bool, True)
     self._connected = RawValue(c_bool, False)
 
-    self._sensor_values = IndexableArray(20)
+    self._sensor_values = IndexableArray(21) # include the voltage
     self._num_sensors = Value(c_int, 0)
     self._last_rx_time = Value(c_double, 0.0)
     self._motor_values = IndexableArray(10)
@@ -290,7 +294,7 @@ class VexCortex:
     """Get the sensor values
 
     Returns:
-        List[int]: sensor values
+        List[int]: voltage, sensor values
     """
     self._sensor_values._data.acquire()
     num_sensors = self._num_sensors.value
