@@ -59,8 +59,8 @@ async def sender(websocket):
     try:
       # throttle communication so that we don't bombard the socket connection
       curr_time = datetime.now()
-      dt = (curr_time - last_tx_time).total_seconds()
-      if last_tx_time is None or dt > tx_interval:
+      dt = tx_interval if last_tx_time is None else (curr_time - last_tx_time).total_seconds()
+      if dt < tx_interval:
         time.sleep(dt - tx_interval)
         last_tx_time = datetime.now()
       else:
