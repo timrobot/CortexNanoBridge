@@ -267,7 +267,7 @@ def write(values, voltage_level=None):
 
 def readtime():
   last_rx_time.acquire()
-  rxtime = last_rx_time.value
+  rxtime = last_rx_time.value.decode()
   last_rx_time.release()
   return rxtime
 
