@@ -333,7 +333,7 @@ SendMessage() {
   int             _value;
   unsigned char   chk_sum = 0, total_bytes = 0;
 
-  int             voltage_level = nAvgBatteryLevel;
+  int             voltage_level = nAvgBatteryLevel; // nImmediateBatteryLevel
 
   // We are going to have to use a special fmt to compose the message
   buf[0] = 0;  // in case of de-sync
@@ -341,6 +341,11 @@ SendMessage() {
   buf[2] = '[';
   buf[3] = CMD_STATUS_SENSOR_VALUES;
   _data = &buf[6]; // push to 6 since we need 4,5 for len
+
+  // send the voltage level
+  sprintf(_data, "%04x", voltage_level & 0xFFFF);
+  _data += 4;
+  total_bytes += 4;
 
   for (i = 0; i < _sensor_cnt; i++) {
     _value = (unsigned short)_sensor_values[i];

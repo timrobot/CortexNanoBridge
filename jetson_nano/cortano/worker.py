@@ -4,7 +4,7 @@ from cortano import RealsenseCamera
 if __name__ == "__main__":
   cam = RealsenseCamera(autostart=False)
   robot = VexCortex("/dev/ttyUSB0")
-  lan.start("robot", frame_shape=(360, 640), target=robot, camera=cam)
+  lan.start(port=9999, frame_shape=(360, 640), robot=robot, realsense=cam)
 
   while robot.running():
     lan.check_alive()
