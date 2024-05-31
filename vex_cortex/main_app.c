@@ -21,7 +21,7 @@ void ReadSensors()
   SerialWriteSensor(pot2);
   SerialWriteSensor(pot3);
   SerialWriteSensor(pot4);
-  SerialWriteSensor(qual1);
+  SerialWriteSensor(quad1);
   SerialWriteSensor(quad2);
   SerialWriteSensor(sw1);
   SerialWriteSensor(sw2);
