@@ -268,12 +268,16 @@ def write(values, voltage_level=None):
 def readtime():
   last_rx_time.acquire()
   rxtime = last_rx_time.value.decode()
+  if len(rxtime) > 0:
+    rxtime = datetime.fromisoformat(rxtime)
+  else:
+    rxtime = None
   last_rx_time.release()
   return rxtime
 
 def check_alive():
   rxtime = readtime()
-  if (datetime.now() - rxtime).total_seconds() > 0.5: # timeout 0.5s before setting motors to 0
+  if rxtime is None or (datetime.now() - rxtime).total_seconds() > 0.5: # timeout 0.5s before setting motors to 0
     motor_values[:] = [0] * len(motor_values) # just in case an error occured
     motor_values.acquire()
     motor_values[:] = [0] * len(motor_values)
