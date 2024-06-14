@@ -9,7 +9,6 @@ from multiprocessing import (
   Value
 )
 import pickle
-import qoi
 import time
 from datetime import datetime
 import cv2
@@ -41,6 +40,8 @@ _running = Value(c_bool, True)
 last_rx_time = Array(c_char, 100)
 comms_task = None
 
+encoding_params = [int(cv2.IMWRITE_WEBP_QUALITY), 100]
+
 async def sender(websocket):
   # we can use this in order to prevent data transfer latencies or data synchronization issues
   h, w = frame_shape
@@ -63,22 +64,22 @@ async def sender(websocket):
       color, depth = None, None
       if camera_entity is not None:
         color, depth = camera_entity.read()
-        color = qoi.encode(color)
-        depth = qoi.encode(depth)
+        _, color = cv2.imencode('.webp', color, encoding_params)
+        _, depth = cv2.imencode('.webp', depth, encoding_params)
       if color is None or depth is None: # we don't have an image or controlled camera
         # frame_lock.acquire()
-        color = qoi.encode(color_np)
-        depth = qoi.encode(depth_np)
+        _, color = cv2.imencode('.webp', color_np, encoding_params)
+        _, depth = cv2.imencode('.webp', depth_np, encoding_params)
         # frame_lock.release()
         
       color2 = None
       if cam2_enable.value:
         if camera2_entity is not None:
           _, color2 = camera2_entity.read()
-          color2 = qoi.encode(color2)
+          _, color2 = cv2.imencode('.webp', color2, encoding_params)
         if color2 is None:
           # frame2_lock.acquire()
-          color2 = qoi.encode(color2_np)
+          _, color2 = cv2.imencode('.webp', color2_np, encoding_params)
           # frame2_lock.release()
 
       sensor_values.acquire()
