@@ -198,7 +198,7 @@ class VexCortex:
     self._connected = RawValue(c_bool, False)
 
     self._sensor_values = IndexableArray(21) # include the voltage
-    self._num_sensors = Value(c_int, 0)
+    self._num_sensors = Value(c_int, 1) # the first value will always be voltage
     self._last_rx_time = Value(c_double, 0.0)
     self._motor_values = IndexableArray(10)
     self._worker = None
@@ -281,23 +281,15 @@ class VexCortex:
     """
     self._motor_values.set(motor_values)
 
-  @property
-  def sensor(self):
-    """Reference to the sensor array
-
-    Returns:
-        IndexableArray: reference to the sensor values
-    """
-    return self._sensor_values
-
   def sensors(self):
     """Get the sensor values
 
     Returns:
-        List[int]: voltage, sensor values
+        Tuple[List[int], int]: sensor values, voltage_level
     """
     self._sensor_values._data.acquire()
     num_sensors = self._num_sensors.value
-    sensor_values = self._sensor_values._data[:num_sensors]
+    sensor_values = self._sensor_values._data[1:num_sensors]
+    voltage_level = self._sensor_values._data[0]
     self._sensor_values._data.release()
-    return sensor_values
+    return sensor_values, voltage_level / 1e3
