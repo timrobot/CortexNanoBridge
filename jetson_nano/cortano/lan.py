@@ -17,19 +17,20 @@ import websockets
 import numpy as np
 import sys
 import logging
+import os
 
 # shared variables
 frame_shape = (360, 640)
 tx_interval = 1 / 60
 
 camera_entity = None
-camera2_entity = None
 frame_lock = Lock()
 color_buf = None
 depth_buf = None
 frame2_lock = Lock()
 color2_buf = None
 cam2_enable = Value(c_bool, False)
+cam2_reserve = Value(c_bool, False)
 
 motor_values = None
 sensor_values = None # [voltage, sensor1, sensor2, ...]
@@ -49,6 +50,15 @@ async def sender(websocket):
   depth_np = np.frombuffer(depth_buf, dtype=np.uint8).reshape(h, w // 2, 4)
   color2_np = np.frombuffer(color2_buf, np.uint8).reshape((h, w, 3))
   last_tx_time = None
+  cam2 = None
+  if cam2_enable.value and cam2_reserve.value and cam2 is None:
+    for device_path in os.listdir('/sys/class/video4linux/'):
+      if os.path.exists('/sys/class/video4linux/' + device_path + '/name'):
+        with open('/sys/class/video4linux/' + device_path + '/name', 'r') as fp:
+          device_name = fp.read()
+        if 'realsense' not in device_name.lower():
+          cam2 = cv2.VideoCapture('/dev/' + device_path)
+          break
 
   while _running.value:
     try:
@@ -74,9 +84,10 @@ async def sender(websocket):
         
       color2 = None
       if cam2_enable.value:
-        if camera2_entity is not None:
-          _, color2 = camera2_entity.read()
-          _, color2 = cv2.imencode('.webp', color2, encoding_params)
+        if cam2_reserve.value:
+          retval, color2 = cam2.read()
+          if retval:
+            _, color2 = cv2.imencode('.webp', color2, encoding_params)
         if color2 is None:
           # frame2_lock.acquire()
           _, color2 = cv2.imencode('.webp', color2_np, encoding_params)
@@ -144,10 +155,10 @@ async def request_handler(host, port):
       logging.error(e)
       sys.exit(1)
 
-def comms_worker(port, run, cam, cbuf, dbuf, flock, cam2, cbuf2, cam2_en, flock2, mvals, svals, ns):
+def comms_worker(port, run, cam, cbuf, dbuf, flock, cam2_r, cbuf2, cam2_en, flock2, mvals, svals, ns):
   global main_loop, _running
   global camera_entity, color_buf, depth_buf, frame_lock
-  global camera2_entity, color2_buf, cam2_enable, frame2_lock
+  global cam2_reserve, color2_buf, cam2_enable, frame2_lock
   global motor_values, sensor_values, sensor_length
 
   camera_entity = cam
@@ -155,7 +166,7 @@ def comms_worker(port, run, cam, cbuf, dbuf, flock, cam2, cbuf2, cam2_en, flock2
   depth_buf = dbuf
   frame_lock = flock
 
-  camera2_entity = cam2
+  cam2_reserve = cam2_r
   color2_buf = cbuf2
   cam2_enable = cam2_en
   frame2_lock = flock2
@@ -177,15 +188,15 @@ def comms_worker(port, run, cam, cbuf, dbuf, flock, cam2, cbuf2, cam2_en, flock2
     main_loop.run_until_complete(main_loop.shutdown_asyncgens())
     main_loop.close()
 
-def start(port=9999, robot=None, realsense=None, camera=None):
+def start(port=9999, robot=None, realsense=None, reserveCam2=False):
   global comms_task
   global robot_entity, motor_values, sensor_values, sensor_length
-  global camera_entity, camera2_entity, color_buf, depth_buf, color2_buf
+  global camera_entity, color_buf, depth_buf, color2_buf
   robot_entity = robot
   camera_entity = realsense
-  camera2_entity = camera
-  if camera2_entity is not None:
+  if reserveCam2:
     cam2_enable.value = True
+    cam2_reserve.value = True
 
   if robot_entity is not None:
     motor_values  = robot_entity._motor_values._data
@@ -203,7 +214,7 @@ def start(port=9999, robot=None, realsense=None, camera=None):
   comms_task = Process(target=comms_worker, args=(
     port, _running,
     camera_entity, color_buf, depth_buf, frame_lock,
-    camera2_entity, color2_buf, cam2_enable, frame2_lock,
+    cam2_reserve, color2_buf, cam2_enable, frame2_lock,
     motor_values, sensor_values, sensor_length))
   comms_task.start()
 
