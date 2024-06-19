@@ -66,7 +66,7 @@ def _decode_message(msg):
     chk_sum ^= ord(msg[-1])
     if chk_sum != 0: return None
 
-    voltage_level = int(msg[4:7], base=16)
+    voltage_level = int(msg[4:8], base=16)
     sensor_values.append(voltage_level) # the first value will always be the voltage level
 
     ptr = 8
