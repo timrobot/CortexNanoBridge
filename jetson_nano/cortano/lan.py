@@ -51,7 +51,7 @@ async def sender(websocket):
   global cam2
   h, w = frame_shape
   color_np = np.frombuffer(color_buf, np.uint8).reshape((h, w, 3))
-  depth_np = np.frombuffer(depth_buf, dtype=np.uint16).reshape(h, w // 2, 4)
+  depth_np = np.frombuffer(depth_buf, dtype=np.uint16).reshape((h, w))
   color2_np = np.frombuffer(color2_buf, np.uint8).reshape((h, w, 3))
   last_tx_time = None
   # right now a second camera just causes the jetson to overload
