@@ -146,8 +146,8 @@ async def receiver(websocket):
       break
 
 async def handle_websocket(websocket, path):
-  recv_task = asyncio.create_task(receiver(websocket))
-  send_task = asyncio.create_task(sender(websocket))
+  recv_task = main_loop.create_task(receiver(websocket))
+  send_task = main_loop.create_task(sender(websocket))
   await asyncio.gather(recv_task, send_task)
 
 async def request_handler(host, port):
