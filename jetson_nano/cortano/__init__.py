@@ -19,16 +19,19 @@ from .device import (
     PORT18,
     PORT19,
     PORT20,
-    RealsenseCamera
+    RealsenseCamera,
+    getNextWebcamPath
 )
 from .lan import (
     start,
     stop,
     set_frame,
+    set_secondary_frame,
     read,
     write,
     readtime,
-    check_alive
+    check_alive,
+    running
 )
 from .vex_serial import (
     MLIMIT,

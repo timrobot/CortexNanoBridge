@@ -18,6 +18,7 @@ import numpy as np
 import sys
 import logging
 import os
+from device import getNextWebcamPath
 
 # shared variables
 frame_shape = (360, 640)
@@ -52,16 +53,12 @@ async def sender(websocket):
   last_tx_time = None
   cam2 = None
   if cam2_enable.value and cam2_reserve.value and cam2 is None:
-    for device_path in os.listdir('/sys/class/video4linux/'):
-      if os.path.exists('/sys/class/video4linux/' + device_path + '/name'):
-        with open('/sys/class/video4linux/' + device_path + '/name', 'r') as fp:
-          device_name = fp.read()
-        if 'realsense' not in device_name.lower():
-          cam2 = cv2.VideoCapture('/dev/' + device_path)
-          cam2.set(cv2.CAP_PROP_FRAME_HEIGHT, 360)
-          cam2.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-          cam2.set(cv2.CAP_PROP_FPS, 30)
-          break
+    cam_path = getNextWebcamPath()
+    if cam_path is not None:
+      cam2 = cv2.VideoCapture(cam_path)
+      cam2.set(cv2.CAP_PROP_FRAME_HEIGHT, 360)
+      cam2.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+      cam2.set(cv2.CAP_PROP_FPS, 30)
 
   while _running.value:
     try:

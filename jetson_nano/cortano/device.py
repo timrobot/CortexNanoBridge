@@ -175,3 +175,12 @@ class RealsenseCamera:
 
   def connected(self):
     return self.pipeline is not None
+  
+def getNextWebcamPath():
+  for device_path in os.listdir('/sys/class/video4linux/'):
+    if os.path.exists('/sys/class/video4linux/' + device_path + '/name'):
+      with open('/sys/class/video4linux/' + device_path + '/name', 'r') as fp:
+        device_name = fp.read()
+      if 'realsense' not in device_name.lower():
+        return '/dev/' + device_path
+  return None
