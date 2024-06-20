@@ -58,6 +58,9 @@ async def sender(websocket):
           device_name = fp.read()
         if 'realsense' not in device_name.lower():
           cam2 = cv2.VideoCapture('/dev/' + device_path)
+          cam2.set(cv2.CAP_PROP_FRAME_HEIGHT, 360)
+          cam2.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+          cam2.set(cv2.CAP_PROP_FPS, 30)
           break
 
   while _running.value:
@@ -88,7 +91,7 @@ async def sender(websocket):
           retval, color2 = cam2.read()
           if retval:
             _, color2 = cv2.imencode('.webp', color2, encoding_params)
-        if color2 is None:
+        else:
           # frame2_lock.acquire()
           _, color2 = cv2.imencode('.webp', color2_np, encoding_params)
           # frame2_lock.release()
@@ -98,7 +101,7 @@ async def sender(websocket):
       sensor_values.release()
 
       frames = [pickle.dumps(color, 0), pickle.dumps(depth, 0)]
-      if cam2_enable.value:
+      if cam2_enable.value and color2 is not None:
         frames += [pickle.dumps(color2, 0)]
       data = json.dumps({
         "lengths": [len(f) for f in frames],
@@ -188,13 +191,21 @@ def comms_worker(port, run, cam, cbuf, dbuf, flock, cam2_r, cbuf2, cam2_en, floc
     main_loop.run_until_complete(main_loop.shutdown_asyncgens())
     main_loop.close()
 
-def start(port=9999, robot=None, realsense=None, reserveCam2=False):
+def start(port=9999, robot=None, realsense=None, secondaryCam=False):
+  """Start a local area network connection
+
+  Args:
+      port (int, optional): Websocket port. Defaults to 9999.
+      robot (_type_, optional): Vex Serial entity. Defaults to None.
+      realsense (_type_, optional): _description_. Defaults to None.
+      secondaryCam (bool, optional): Reserve the /dev/video* cam port on LAN. Don't set to True if you already opened a camera. Defaults to False.
+  """
   global comms_task
   global robot_entity, motor_values, sensor_values, sensor_length
   global camera_entity, color_buf, depth_buf, color2_buf
   robot_entity = robot
   camera_entity = realsense
-  if reserveCam2:
+  if secondaryCam:
     cam2_enable.value = True
     cam2_reserve.value = True
 
