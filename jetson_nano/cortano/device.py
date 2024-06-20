@@ -9,7 +9,7 @@ import time
 import pyrealsense2 as rs
 from typing import Tuple
 import cv2
-from . import vex_serial
+from vex_serial import VexCortex
 import logging
 
 logging.basicConfig(filename="/var/log/cortano.log",
@@ -44,8 +44,8 @@ PORT20 = 19
 _kill_event = threading.Event()
 def handle_signal(sig, frame):
   _kill_event.set()
-  if vex_serial.VexCortex._entity:
-    vex_serial.VexCortex._entity._keep_running.value = False
+  if VexCortex._entity:
+    VexCortex._entity._keep_running.value = False
 signal.signal(signal.SIGINT, handle_signal)
 
 class RealsenseCamera:
