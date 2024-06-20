@@ -30,6 +30,7 @@ color_buf = None
 depth_buf = None
 frame2_lock = Lock()
 color2_buf = None
+cam2 = None
 cam2_enable = Value(c_bool, False)
 cam2_reserve = Value(c_bool, False)
 
@@ -42,23 +43,25 @@ _running = Value(c_bool, True)
 last_rx_time = Array(c_char, 100)
 comms_task = None
 
-encoding_params = [int(cv2.IMWRITE_WEBP_QUALITY), 100]
+encoding_params = [int(cv2.IMWRITE_PNG_COMPRESSION), 1,
+                   cv2.IMWRITE_PNG_STRATEGY, cv2.IMWRITE_PNG_STRATEGY_RLE]
 
 async def sender(websocket):
   # we can use this in order to prevent data transfer latencies or data synchronization issues
+  global cam2
   h, w = frame_shape
   color_np = np.frombuffer(color_buf, np.uint8).reshape((h, w, 3))
   depth_np = np.frombuffer(depth_buf, dtype=np.uint8).reshape(h, w // 2, 4)
   color2_np = np.frombuffer(color2_buf, np.uint8).reshape((h, w, 3))
   last_tx_time = None
-  cam2 = None
-  if cam2_enable.value and cam2_reserve.value and cam2 is None:
-    cam_path = getNextWebcamPath()
-    if cam_path is not None:
-      cam2 = cv2.VideoCapture(cam_path)
-      cam2.set(cv2.CAP_PROP_FRAME_HEIGHT, 360)
-      cam2.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-      cam2.set(cv2.CAP_PROP_FPS, 30)
+  # right now a second camera just causes the jetson to overload
+  # if cam2_enable.value and cam2_reserve.value and cam2 is None:
+  #   cam_path = getNextWebcamPath()
+  #   if cam_path is not None:
+  #     cam2 = cv2.VideoCapture(cam_path)
+  #     cam2.set(cv2.CAP_PROP_FRAME_HEIGHT, 360)
+  #     cam2.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+  #     cam2.set(cv2.CAP_PROP_FPS, 30)
 
   while _running.value:
     try:
@@ -74,23 +77,24 @@ async def sender(websocket):
       color, depth = None, None
       if camera_entity is not None:
         color, depth = camera_entity.read()
-        _, color = cv2.imencode('.webp', color, encoding_params)
-        _, depth = cv2.imencode('.webp', depth, encoding_params)
+        _, color = cv2.imencode('.png', color, encoding_params)
+        _, depth = cv2.imencode('.png', depth, encoding_params)
       if color is None or depth is None: # we don't have an image or controlled camera
         # frame_lock.acquire()
-        _, color = cv2.imencode('.webp', color_np, encoding_params)
-        _, depth = cv2.imencode('.webp', depth_np, encoding_params)
+        _, color = cv2.imencode('.png', color_np, encoding_params)
+        _, depth = cv2.imencode('.png', depth_np, encoding_params)
         # frame_lock.release()
         
       color2 = None
       if cam2_enable.value:
         if cam2_reserve.value:
-          retval, color2 = cam2.read()
-          if retval:
-            _, color2 = cv2.imencode('.webp', color2, encoding_params)
+          if cam2 is not None:
+            retval, color2 = cam2.read()
+            if retval:
+              _, color2 = cv2.imencode('.png', color2, encoding_params)
         else:
           # frame2_lock.acquire()
-          _, color2 = cv2.imencode('.webp', color2_np, encoding_params)
+          _, color2 = cv2.imencode('.png', color2_np, encoding_params)
           # frame2_lock.release()
 
       sensor_values.acquire()
@@ -100,20 +104,21 @@ async def sender(websocket):
       frames = [pickle.dumps(color, 0), pickle.dumps(depth, 0)]
       if cam2_enable.value and color2 is not None:
         frames += [pickle.dumps(color2, 0)]
-      data = json.dumps({
+      msg = json.dumps({
         "lengths": [len(f) for f in frames],
         "timestamp": datetime.isoformat(curr_time),
         "sensors": [int(x) for x in sensors[1:]],
         "voltage": int(sensors[0])
       }).encode("utf-8")
       for f in frames:
-        data += f
+        msg += f
 
-      await websocket.send(data)
+      await websocket.send(msg)
     except websockets.ConnectionClosed:
       logging.warning(datetime.isoformat(datetime.now()) + " Connection closed.")
       last_tx_time = None
-      await asyncio.sleep(1)
+      # await asyncio.sleep(1)
+      break
 
 async def receiver(websocket):
   while _running.value:
@@ -137,7 +142,8 @@ async def receiver(websocket):
       # last_rx_time.acquire()
       # last_rx_time.value = "".encode()
       # last_rx_time.release()
-      await asyncio.sleep(1)
+      # await asyncio.sleep(1)
+      break
 
 async def handle_websocket(websocket, path):
   recv_task = asyncio.create_task(receiver(websocket))
@@ -290,7 +296,7 @@ def readtime():
   last_rx_time.acquire()
   rxtime = last_rx_time.value.decode()
   if len(rxtime) > 0:
-    rxtime = datetime.fromisoformat(rxtime)
+    rxtime = datetime.strptime(rxtime, "%Y-%m-%dT%H:%M:%S.%f")
   else:
     rxtime = None
   last_rx_time.release()
