@@ -182,6 +182,9 @@ async def request_handler(host, port, coro):
 def recv_worker(port, run, mvals):
   global main_loop, _running
   global motor_values
+  global recv_task
+
+  recv_task = None
 
   motor_values = mvals
 
@@ -203,6 +206,9 @@ def send_worker(port, run, cam, cbuf, dbuf, flock, cam2_r, cbuf2, cam2_en, flock
   global camera_entity, color_buf, depth_buf, frame_lock
   global cam2_reserve, color2_buf, cam2_enable, frame2_lock
   global sensor_values, sensor_length
+  global send_task
+
+  send_task = None
 
   camera_entity = cam
   color_buf = cbuf
@@ -262,11 +268,11 @@ def start(port=9999, robot=None, realsense=None, secondaryCam=False):
   depth_buf = RawArray(c_uint8, frame_shape[0] * frame_shape[1] * 2)
   color2_buf = Array(c_char, frame_shape[0] * frame_shape[1] * 3)
 
-  recv_task = Process(target=send_worker, args=(
+  recv_task = Process(target=recv_worker, args=(
     port, _running, motor_values))
   recv_task.start()
 
-  send_task = Process(target=recv_worker, args=(
+  send_task = Process(target=send_worker, args=(
     port, _running,
     camera_entity, color_buf, depth_buf, frame_lock,
     cam2_reserve, color2_buf, cam2_enable, frame2_lock,
@@ -274,10 +280,11 @@ def start(port=9999, robot=None, realsense=None, secondaryCam=False):
   send_task.start()
 
 def stop():
-  global comms_task
+  global send_task, recv_task
   _running.value = False
   time.sleep(0.3)
-  comms_task.kill()
+  send_task.kill()
+  recv_task.kill()
 
 def set_frame(color: np.ndarray, depth: np.ndarray, cam2_color: np.ndarray=None):
   """Set the outgoing color, depth frames
