@@ -183,7 +183,6 @@ def recv_worker(port, run, mvals):
   global main_loop, _running
   global motor_values
   global recv_task
-
   recv_task = None
 
   motor_values = mvals
@@ -207,7 +206,6 @@ def send_worker(port, run, cam, cbuf, dbuf, flock, cam2_r, cbuf2, cam2_en, flock
   global cam2_reserve, color2_buf, cam2_enable, frame2_lock
   global sensor_values, sensor_length
   global send_task
-
   send_task = None
 
   camera_entity = cam
@@ -273,7 +271,7 @@ def start(port=9999, robot=None, realsense=None, secondaryCam=False):
   recv_task.start()
 
   send_task = Process(target=send_worker, args=(
-    port, _running,
+    port-1, _running,
     camera_entity, color_buf, depth_buf, frame_lock,
     cam2_reserve, color2_buf, cam2_enable, frame2_lock,
     sensor_values, sensor_length))
