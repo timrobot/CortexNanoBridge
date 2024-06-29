@@ -145,25 +145,30 @@ async def receiver(websocket):
       # last_rx_time.release()
       await asyncio.sleep(1)
 
-async def handle_websocket(websocket, path):
-  global send_task, recv_task
+async def handle_send(websocket, path):
+  global send_task
   if send_task is not None:
     try:
       send_task.cancel()
       send_task = None
     except Exception as e:
       print(e)
+  send_task = main_loop.create_task(sender(websocket))
+  await asyncio.gather(send_task)
+
+async def handle_recv(websocket, path):
+  global recv_task
+  if recv_task is not None:
     try:
       recv_task.cancel()
       recv_task = None
     except Exception as e:
       print(e)
   recv_task = main_loop.create_task(receiver(websocket))
-  send_task = main_loop.create_task(sender(websocket))
-  await asyncio.gather(recv_task, send_task)
+  await asyncio.gather(recv_task)
 
-async def request_handler(host, port):
-  async with websockets.serve(handle_websocket, host, port):
+async def request_handler(host, port, coro):
+  async with websockets.serve(coro, host, port):
     try:
       await asyncio.Future()
     except asyncio.exceptions.CancelledError:
@@ -195,10 +200,12 @@ def comms_worker(port, run, cam, cbuf, dbuf, flock, cam2_r, cbuf2, cam2_en, floc
 
   _running = run
   main_loop = asyncio.new_event_loop()
-  request_task = main_loop.create_task(request_handler("0.0.0.0", port))
+  recv_task = main_loop.create_task(request_handler("0.0.0.0", port, handle_recv))
+  send_task = main_loop.create_task(request_handler("0.0.0.0", port-1, handle_send))
   try:
     asyncio.set_event_loop(main_loop)
-    main_loop.run_until_complete(request_task)
+    main_loop.run_until_complete(send_task)
+    main_loop.run_until_complete(recv_task)
   except (KeyboardInterrupt,):
     _running.value = False
     main_loop.stop()
