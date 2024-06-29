@@ -42,6 +42,8 @@ main_loop = None
 _running = Value(c_bool, True)
 last_rx_time = Array(c_char, 100)
 comms_task = None
+send_task = None
+recv_task = None
 
 encoding_params = [int(cv2.IMWRITE_PNG_COMPRESSION), 1,
                    cv2.IMWRITE_PNG_STRATEGY, cv2.IMWRITE_PNG_STRATEGY_RLE]
@@ -117,8 +119,7 @@ async def sender(websocket):
     except websockets.ConnectionClosed:
       logging.warning(datetime.isoformat(datetime.now()) + " Connection closed.")
       last_tx_time = None
-      # await asyncio.sleep(1)
-      break
+      await asyncio.sleep(1)
 
 async def receiver(websocket):
   while _running.value:
@@ -142,10 +143,21 @@ async def receiver(websocket):
       # last_rx_time.acquire()
       # last_rx_time.value = "".encode()
       # last_rx_time.release()
-      # await asyncio.sleep(1)
-      break
+      await asyncio.sleep(1)
 
 async def handle_websocket(websocket, path):
+  global send_task, recv_task
+  if send_task is not None:
+    try:
+      send_task.cancel()
+      send_task = None
+    except Exception as e:
+      print(e)
+    try:
+      recv_task.cancel()
+      recv_task = None
+    except Exception as e:
+      print(e)
   recv_task = main_loop.create_task(receiver(websocket))
   send_task = main_loop.create_task(sender(websocket))
   await asyncio.gather(recv_task, send_task)
