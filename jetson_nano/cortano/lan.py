@@ -54,7 +54,7 @@ async def sender(websocket):
   depth_np = np.frombuffer(depth_buf, dtype=np.uint16).reshape((h, w))
   color2_np = np.frombuffer(color2_buf, np.uint8).reshape((h, w, 3))
   last_tx_time = None
-  # right now a second camera just causes the jetson to overload
+  # right now a second camera just causes the jetson to overload, disabling
   # if cam2_enable.value and cam2_reserve.value and cam2 is None:
   #   cam_path = getNextWebcamPath()
   #   if cam_path is not None:
