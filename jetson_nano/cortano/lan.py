@@ -54,7 +54,7 @@ async def sender(websocket):
   h, w = frame_shape
   color_np = np.frombuffer(color_buf, np.uint8).reshape((h, w, 3))
   depth_np = np.frombuffer(depth_buf, dtype=np.uint16).reshape((h, w))
-  color2_np = np.frombuffer(color2_buf, np.uint8).reshape((h, w, 3))
+  # color2_np = np.frombuffer(color2_buf, np.uint8).reshape((h, w, 3))
   last_tx_time = None
   # right now a second camera just causes the jetson to overload, disabling
   # if cam2_enable.value and cam2_reserve.value and cam2 is None:
@@ -94,9 +94,10 @@ async def sender(websocket):
             retval, color2 = cam2.read()
             if retval:
               _, color2 = cv2.imencode('.png', color2, encoding_params)
+              color2 = pickle.dumps(color2, 0)
         else:
           # frame2_lock.acquire()
-          _, color2 = cv2.imencode('.png', color2_np, encoding_params)
+          color2 = color2_buf.value
           # frame2_lock.release()
 
       sensor_values.acquire()
@@ -105,7 +106,7 @@ async def sender(websocket):
 
       frames = [pickle.dumps(color, 0), pickle.dumps(depth, 0)]
       if cam2_enable.value and color2 is not None:
-        frames += [pickle.dumps(color2, 0)]
+        frames += [color2]
       msg = json.dumps({
         "lengths": [len(f) for f in frames],
         "timestamp": datetime.isoformat(curr_time),
@@ -178,11 +179,30 @@ async def request_handler(host, port, coro):
       logging.error(e)
       sys.exit(1)
 
-def comms_worker(port, run, cam, cbuf, dbuf, flock, cam2_r, cbuf2, cam2_en, flock2, mvals, svals, ns):
+def recv_worker(port, run, mvals):
+  global main_loop, _running
+  global motor_values
+
+  motor_values = mvals
+
+  _running = run
+  main_loop = asyncio.new_event_loop()
+  recv_task = main_loop.create_task(request_handler("0.0.0.0", port, handle_recv))
+  try:
+    asyncio.set_event_loop(main_loop)
+    main_loop.run_until_complete(recv_task)
+  except (KeyboardInterrupt,):
+    _running.value = False
+    main_loop.stop()
+  finally:
+    main_loop.run_until_complete(main_loop.shutdown_asyncgens())
+    main_loop.close()
+
+def send_worker(port, run, cam, cbuf, dbuf, flock, cam2_r, cbuf2, cam2_en, flock2, svals, ns):
   global main_loop, _running
   global camera_entity, color_buf, depth_buf, frame_lock
   global cam2_reserve, color2_buf, cam2_enable, frame2_lock
-  global motor_values, sensor_values, sensor_length
+  global sensor_values, sensor_length
 
   camera_entity = cam
   color_buf = cbuf
@@ -194,18 +214,15 @@ def comms_worker(port, run, cam, cbuf, dbuf, flock, cam2_r, cbuf2, cam2_en, floc
   cam2_enable = cam2_en
   frame2_lock = flock2
 
-  motor_values = mvals
   sensor_values = svals
   sensor_length = ns
 
   _running = run
   main_loop = asyncio.new_event_loop()
-  recv_task = main_loop.create_task(request_handler("0.0.0.0", port, handle_recv))
   send_task = main_loop.create_task(request_handler("0.0.0.0", port-1, handle_send))
   try:
     asyncio.set_event_loop(main_loop)
     main_loop.run_until_complete(send_task)
-    main_loop.run_until_complete(recv_task)
   except (KeyboardInterrupt,):
     _running.value = False
     main_loop.stop()
@@ -225,6 +242,7 @@ def start(port=9999, robot=None, realsense=None, secondaryCam=False):
   global comms_task
   global robot_entity, motor_values, sensor_values, sensor_length
   global camera_entity, color_buf, depth_buf, color2_buf
+  global recv_task, send_task
   robot_entity = robot
   camera_entity = realsense
   if secondaryCam:
@@ -242,14 +260,18 @@ def start(port=9999, robot=None, realsense=None, secondaryCam=False):
 
   color_buf = RawArray(c_uint8, frame_shape[0] * frame_shape[1] * 3)
   depth_buf = RawArray(c_uint8, frame_shape[0] * frame_shape[1] * 2)
-  color2_buf = RawArray(c_uint8, frame_shape[0] * frame_shape[1] * 3)
+  color2_buf = Array(c_char, frame_shape[0] * frame_shape[1] * 3)
 
-  comms_task = Process(target=comms_worker, args=(
+  recv_task = Process(target=send_worker, args=(
+    port, _running, motor_values))
+  recv_task.start()
+
+  send_task = Process(target=recv_worker, args=(
     port, _running,
     camera_entity, color_buf, depth_buf, frame_lock,
     cam2_reserve, color2_buf, cam2_enable, frame2_lock,
-    motor_values, sensor_values, sensor_length))
-  comms_task.start()
+    sensor_values, sensor_length))
+  send_task.start()
 
 def stop():
   global comms_task
@@ -274,11 +296,9 @@ def set_frame(color: np.ndarray, depth: np.ndarray, cam2_color: np.ndarray=None)
   np.copyto(depth_np, depth)
   # frame_lock.release()
   if cam2_color is not None:
-    color2_np = np.frombuffer(color2_buf, np.uint8).reshape((h, w, 3))
-    # frame2_lock.acquire()
     cam2_enable.value = True
-    np.copyto(color2_np, cam2_color)
-    # frame2_lock.release()
+    _, color2 = cv2.imencode('.png', cam2_color, encoding_params)
+    color2_buf.value = pickle.dumps(color2, 0)
 
 def set_secondary_frame(color: np.ndarray):
   """Set the outgoing color frame of the second camera
@@ -288,11 +308,9 @@ def set_secondary_frame(color: np.ndarray):
   """
   h, w = frame_shape
   if color is not None:
-    color2_np = np.frombuffer(color2_buf, np.uint8).reshape((h, w, 3))
-    frame2_lock.acquire()
     cam2_enable.value = True
-    np.copyto(color2_np, color)
-    frame2_lock.release()
+    _, color2 = cv2.imencode('.png', color, encoding_params)
+    color2_buf.value = pickle.dumps(color2, 0)
 
 def write(values, voltage_level=None):
   """Send sensor values and voltage to remote location
