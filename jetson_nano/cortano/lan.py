@@ -223,7 +223,7 @@ def send_worker(port, run, cam, cbuf, dbuf, flock, cam2_r, cbuf2, cam2_en, flock
 
   _running = run
   main_loop = asyncio.new_event_loop()
-  send_task = main_loop.create_task(request_handler("0.0.0.0", port-1, handle_send))
+  send_task = main_loop.create_task(request_handler("0.0.0.0", port, handle_send))
   try:
     asyncio.set_event_loop(main_loop)
     main_loop.run_until_complete(send_task)
