@@ -148,23 +148,23 @@ async def receiver(websocket):
 
 async def handle_send(websocket, path):
   global send_task
-  if send_task is not None:
-    try:
-      send_task.cancel()
-      send_task = None
-    except Exception as e:
-      print(e)
+  # if send_task is not None:
+  #   try:
+  #     send_task.cancel()
+  #     send_task = None
+  #   except Exception as e:
+  #     print(e)
   send_task = main_loop.create_task(sender(websocket))
   await asyncio.gather(send_task)
 
 async def handle_recv(websocket, path):
   global recv_task
-  if recv_task is not None:
-    try:
-      recv_task.cancel()
-      recv_task = None
-    except Exception as e:
-      print(e)
+  # if recv_task is not None:
+  #   try:
+  #     recv_task.cancel()
+  #     recv_task = None
+  #   except Exception as e:
+  #     print(e)
   recv_task = main_loop.create_task(receiver(websocket))
   await asyncio.gather(recv_task)
 
