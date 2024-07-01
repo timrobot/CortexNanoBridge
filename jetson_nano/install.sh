@@ -4,6 +4,8 @@ echo "installing dependencies"
 sudo python3 install.py
 sudo python3 -m pip install .
 
+sudo cp -r qoi /usr/local/lib/python3.6/dist-packages/qoi
+
 # /dev/ttyUSB* access from user, although it doesn't matter for su worker
 if [ $(getent group dialout) ]; then
   echo "adding: $USER :to group dialout"

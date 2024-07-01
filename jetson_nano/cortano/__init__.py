@@ -25,8 +25,7 @@ from .device import (
 from .lan import (
     start,
     stop,
-    set_frame,
-    set_secondary_frame,
+    set_frames,
     read,
     write,
     readtime,
