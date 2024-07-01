@@ -182,5 +182,13 @@ def getNextWebcamPath():
       with open('/sys/class/video4linux/' + device_path + '/name', 'r') as fp:
         device_name = fp.read()
       if 'realsense' not in device_name.lower():
-        return '/dev/' + device_path
+        _path = '/dev/' + device_path
+        cap = cv2.VideoCapture(_path)
+        ret, frame = cap.read()
+        ret, frame = cap.read() # try twice just to make sure
+        if ret and frame is not None:
+          cap.release()
+          return _path
+        else:
+          cap.release()
   return None

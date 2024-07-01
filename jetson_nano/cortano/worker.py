@@ -3,7 +3,7 @@ from cortano import RealsenseCamera, getNextWebcamPath
 import cv2
 
 if __name__ == "__main__":
-  realsense = RealsenseCamera(autostart=False)
+  realsense = RealsenseCamera()
   robot = VexCortex("/dev/ttyUSB0")
   lan.start(port=9999, robot=robot)
   second_cam_path = getNextWebcamPath()

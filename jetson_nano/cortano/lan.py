@@ -252,16 +252,22 @@ def set_frames(color: np.ndarray=None, depth: np.ndarray=None, color2: np.ndarra
   color_np = np.frombuffer(color_buf, np.uint8)
   depth_np = np.frombuffer(depth_buf, np.uint8)
   color2_np = np.frombuffer(color2_buf, np.uint8)
-  frame_lock.acquire()
+  color, depth, color2 = None, None, None
   if color is not None and depth is not None:
     color = qoi.encode(color)
-    np.copyto(color_np[:len(color)], np.frombuffer(color, np.uint8))
     depth = qoi.encode(depth.view(np.uint8).reshape((h, w // 2, 4)))
-    np.copyto(depth_np[:len(depth)], np.frombuffer(depth, np.uint8))
   if color2 is not None:
     color2_en.value = True
     color2 = qoi.encode(color2)
+  frame_lock.acquire()
+  if color is not None and depth is not None:
+    np.copyto(color_np[:len(color)], np.frombuffer(color, np.uint8))
+    np.copyto(depth_np[:len(depth)], np.frombuffer(depth, np.uint8))
+    color_len.value = len(color)
+    depth_len.value = len(depth)
+  if color2 is not None:
     np.copyto(color2_np[:len(color2)], color2)
+    color2_len.value = len(color2)
   frame_lock.release()
 
 def write(values, voltage_level=None):
