@@ -196,7 +196,7 @@ def start(port=9999, robot=None):
   global comms_task
   global robot_entity, motor_values, sensor_values, sensor_length
   global color_buf, depth_buf, color2_buf
-  global recv_task, send_task
+  global recv_task, send_task1, send_task2
   robot_entity = robot
 
   if robot_entity is not None:
@@ -267,7 +267,7 @@ def set_frames(color: np.ndarray=None, depth: np.ndarray=None, color2: np.ndarra
     color_len.value = len(color)
     depth_len.value = len(depth)
   if color2 is not None:
-    np.copyto(color2_np[:len(color2)], color2)
+    np.copyto(color2_np[:len(color2)], np.frombuffer(color2, np.uint8))
     color2_np[len(color2)] = 0
     color2_len.value = len(color2)
   frame_lock.release()
