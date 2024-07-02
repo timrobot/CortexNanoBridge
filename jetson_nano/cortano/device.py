@@ -182,5 +182,20 @@ def getNextWebcamPath():
       with open('/sys/class/video4linux/' + device_path + '/name', 'r') as fp:
         device_name = fp.read()
       if 'realsense' not in device_name.lower():
-        return '/dev/' + device_path
+        _path = '/dev/' + device_path
+        cap = cv2.VideoCapture(_path)
+        try:
+          cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+          cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 360)
+          cap.set(cv2.CAP_PROP_FPS, 30)
+          ret, frame = cap.read()
+          ret, frame = cap.read() # try twice just to make sure
+          if ret and frame is not None and len(frame.shape) == 3 and tuple(frame.shape) == (360, 640, 3):
+            cap.release()
+            return _path
+          else:
+            cap.release()
+        except Exception as e:
+          print(e)
+          cap.release()
   return None

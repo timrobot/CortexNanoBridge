@@ -11,28 +11,26 @@ from multiprocessing import (
 import pickle
 import time
 from datetime import datetime
-import cv2
 import signal
 import websockets
 import numpy as np
 import sys
 import logging
 import os
-from device import getNextWebcamPath
+import qoi
 
 # shared variables
 frame_shape = (360, 640)
 tx_interval = 1 / 60
 
-camera_entity = None
 frame_lock = Lock()
 color_buf = None
 depth_buf = None
-frame2_lock = Lock()
 color2_buf = None
-cam2 = None
-cam2_enable = Value(c_bool, False)
-cam2_reserve = Value(c_bool, False)
+color_len = Value(c_int, 0)
+depth_len = Value(c_int, 0)
+color2_len = Value(c_int, 0)
+color2_en = Value(c_bool, False)
 
 motor_values = None
 sensor_values = None # [voltage, sensor1, sensor2, ...]
@@ -42,84 +40,54 @@ main_loop = None
 _running = Value(c_bool, True)
 last_rx_time = Array(c_char, 100)
 comms_task = None
-send_task = None
+send_task1 = None
+send_task2 = None
 recv_task = None
-
-encoding_params = [int(cv2.IMWRITE_PNG_COMPRESSION), 1,
-                   cv2.IMWRITE_PNG_STRATEGY, cv2.IMWRITE_PNG_STRATEGY_RLE]
 
 async def sender(websocket):
   # we can use this in order to prevent data transfer latencies or data synchronization issues
-  global cam2
-  h, w = frame_shape
-  color_np = np.frombuffer(color_buf, np.uint8).reshape((h, w, 3))
-  depth_np = np.frombuffer(depth_buf, dtype=np.uint16).reshape((h, w))
-  # color2_np = np.frombuffer(color2_buf, np.uint8).reshape((h, w, 3))
-  last_tx_time = None
-  # right now a second camera just causes the jetson to overload, disabling
-  # if cam2_enable.value and cam2_reserve.value and cam2 is None:
-  #   cam_path = getNextWebcamPath()
-  #   if cam_path is not None:
-  #     cam2 = cv2.VideoCapture(cam_path)
-  #     cam2.set(cv2.CAP_PROP_FRAME_HEIGHT, 360)
-  #     cam2.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-  #     cam2.set(cv2.CAP_PROP_FPS, 30)
+  color_np = np.frombuffer(color_buf, np.uint8)
+  depth_np = np.frombuffer(depth_buf, np.uint8)
+  color2_np = np.frombuffer(color2_buf, np.uint8)
+  # last_tx_time = None
 
   while _running.value:
     try:
       # throttle communication so that we don't bombard the socket connection
       curr_time = datetime.now()
-      dt = tx_interval if last_tx_time is None else (curr_time - last_tx_time).total_seconds()
-      if dt < tx_interval:
-        await asyncio.sleep(tx_interval - dt)
-        last_tx_time = datetime.now()
-      else:
-        last_tx_time = curr_time
+      # dt = tx_interval if last_tx_time is None else (curr_time - last_tx_time).total_seconds()
+      # if dt < tx_interval:
+      #   await asyncio.sleep(tx_interval - dt)
+      #   last_tx_time = datetime.now()
+      # else:
+      #   last_tx_time = curr_time
 
-      color, depth = None, None
-      if camera_entity is not None:
-        color, depth = camera_entity.read()
-        _, color = cv2.imencode('.png', color, encoding_params)
-        _, depth = cv2.imencode('.png', depth, encoding_params)
-      if color is None or depth is None: # we don't have an image or controlled camera
-        # frame_lock.acquire()
-        _, color = cv2.imencode('.png', color_np, encoding_params)
-        _, depth = cv2.imencode('.png', depth_np, encoding_params)
-        # frame_lock.release()
-        
-      color2 = None
-      if cam2_enable.value:
-        if cam2_reserve.value:
-          if cam2 is not None:
-            retval, color2 = cam2.read()
-            if retval:
-              _, color2 = cv2.imencode('.png', color2, encoding_params)
-              color2 = pickle.dumps(color2, 0)
-        else:
-          # frame2_lock.acquire()
-          color2 = color2_buf.value
-          # frame2_lock.release()
+      frames = []
+      frame_len = []
+      frame_lock.acquire()
+      frame_len = [color_len.value, depth_len.value]
+      frames = [color_np[:color_len.value].tobytes(), depth_np[:depth_len.value].tobytes()]
+      # tobytes() might be slow but hopefully good enough
+      if color2_en.value:
+        frame_len.append(color2_len.value)
+        frames.append(color2_np[:color2_len.value].tobytes())
+      frame_lock.release()
 
       sensor_values.acquire()
       sensors = sensor_values[:sensor_length.value]
       sensor_values.release()
 
-      frames = [pickle.dumps(color, 0), pickle.dumps(depth, 0)]
-      if cam2_enable.value and color2 is not None:
-        frames += [color2]
       msg = json.dumps({
-        "lengths": [len(f) for f in frames],
+        "lengths": frame_len,
         "timestamp": datetime.isoformat(curr_time),
         "sensors": [int(x) for x in sensors[1:]],
         "voltage": int(sensors[0])
-      }).encode("utf-8")
-      for f in frames:
-        msg += f
+      }).encode()
 
-      await websocket.send(msg)
+      await websocket.send([msg] + frames) # sent as an iterable to improve performance
     except websockets.ConnectionClosed:
       logging.warning(datetime.isoformat(datetime.now()) + " Connection closed.")
-      last_tx_time = None
+      # last_tx_time = None
       await asyncio.sleep(1)
 
 async def receiver(websocket):
@@ -148,23 +116,11 @@ async def receiver(websocket):
 
 async def handle_send(websocket, path):
   global send_task
-  # if send_task is not None:
-  #   try:
-  #     send_task.cancel()
-  #     send_task = None
-  #   except Exception as e:
-  #     print(e)
   send_task = main_loop.create_task(sender(websocket))
   await asyncio.gather(send_task)
 
 async def handle_recv(websocket, path):
   global recv_task
-  # if recv_task is not None:
-  #   try:
-  #     recv_task.cancel()
-  #     recv_task = None
-  #   except Exception as e:
-  #     print(e)
   recv_task = main_loop.create_task(receiver(websocket))
   await asyncio.gather(recv_task)
 
@@ -182,9 +138,6 @@ async def request_handler(host, port, coro):
 def recv_worker(port, run, mvals):
   global main_loop, _running
   global motor_values
-  global recv_task
-  recv_task = None
-
   motor_values = mvals
 
   _running = run
@@ -200,23 +153,20 @@ def recv_worker(port, run, mvals):
     main_loop.run_until_complete(main_loop.shutdown_asyncgens())
     main_loop.close()
 
-def send_worker(port, run, cam, cbuf, dbuf, flock, cam2_r, cbuf2, cam2_en, flock2, svals, ns):
+def send_worker(port, run, flock, cbuf, clen, dbuf, dlen, cbuf2, clen2, c2en, svals, ns):
   global main_loop, _running
-  global camera_entity, color_buf, depth_buf, frame_lock
-  global cam2_reserve, color2_buf, cam2_enable, frame2_lock
+  global color_buf, color_len, depth_buf, depth_len, frame_lock
+  global color2_buf, color2_len, color2_en
   global sensor_values, sensor_length
-  global send_task
-  send_task = None
 
-  camera_entity = cam
-  color_buf = cbuf
-  depth_buf = dbuf
   frame_lock = flock
-
-  cam2_reserve = cam2_r
+  color_buf = cbuf
+  color_len = clen
+  depth_buf = dbuf
+  depth_len = dlen
   color2_buf = cbuf2
-  cam2_enable = cam2_en
-  frame2_lock = flock2
+  color2_len = clen2
+  color2_en = c2en
 
   sensor_values = svals
   sensor_length = ns
@@ -234,7 +184,7 @@ def send_worker(port, run, cam, cbuf, dbuf, flock, cam2_r, cbuf2, cam2_en, flock
     main_loop.run_until_complete(main_loop.shutdown_asyncgens())
     main_loop.close()
 
-def start(port=9999, robot=None, realsense=None, secondaryCam=False):
+def start(port=9999, robot=None):
   """Start a local area network connection
 
   Args:
@@ -245,13 +195,9 @@ def start(port=9999, robot=None, realsense=None, secondaryCam=False):
   """
   global comms_task
   global robot_entity, motor_values, sensor_values, sensor_length
-  global camera_entity, color_buf, depth_buf, color2_buf
-  global recv_task, send_task
+  global color_buf, depth_buf, color2_buf
+  global recv_task, send_task1, send_task2
   robot_entity = robot
-  camera_entity = realsense
-  if secondaryCam:
-    cam2_enable.value = True
-    cam2_reserve.value = True
 
   if robot_entity is not None:
     motor_values  = robot_entity._motor_values._data
@@ -262,60 +208,69 @@ def start(port=9999, robot=None, realsense=None, secondaryCam=False):
     sensor_values = Array(c_int, 21)
     sensor_length.value = 1
 
-  color_buf = RawArray(c_uint8, frame_shape[0] * frame_shape[1] * 3)
-  depth_buf = RawArray(c_uint8, frame_shape[0] * frame_shape[1] * 2)
-  color2_buf = Array(c_char, frame_shape[0] * frame_shape[1] * 3)
+  # we are sending over encoded strings + termination char
+  max_size = lambda h, w, c: 14 + h * w * (c + 1) + 8 + 2
+  color_buf = RawArray(c_uint8, max_size(frame_shape[0], frame_shape[1], 3))
+  depth_buf = RawArray(c_uint8, max_size(frame_shape[0], frame_shape[1] // 2, 4))
+  color2_buf = RawArray(c_uint8, max_size(frame_shape[0], frame_shape[1], 3))
 
   recv_task = Process(target=recv_worker, args=(
     port, _running, motor_values))
   recv_task.start()
 
-  send_task = Process(target=send_worker, args=(
+  send_task1 = Process(target=send_worker, args=(
     port-1, _running,
-    camera_entity, color_buf, depth_buf, frame_lock,
-    cam2_reserve, color2_buf, cam2_enable, frame2_lock,
+    frame_lock, color_buf, color_len, depth_buf, depth_len,
+    color2_buf, color2_len, color2_en,
     sensor_values, sensor_length))
-  send_task.start()
+  send_task1.start()
+
+  send_task2 = Process(target=send_worker, args=(
+    port-2, _running,
+    frame_lock, color_buf, color_len, depth_buf, depth_len,
+    color2_buf, color2_len, color2_en,
+    sensor_values, sensor_length))
+  send_task2.start()
 
 def stop():
-  global send_task, recv_task
+  global send_task1, send_task2, recv_task
   _running.value = False
   time.sleep(0.3)
-  send_task.kill()
+  send_task1.kill()
+  send_task2.kill()
   recv_task.kill()
 
-def set_frame(color: np.ndarray, depth: np.ndarray, cam2_color: np.ndarray=None):
+def set_frames(color: np.ndarray=None, depth: np.ndarray=None, color2: np.ndarray=None):
   """Set the outgoing color, depth frames
 
   Args:
-      color (np.ndarray): Realsense Camera color frame
-      depth (np.ndarray): Realsense Camera depth frame
-      cam2_color (np.ndarray): color frame of the second camera
-  """
-  if color is None or depth is None: return
-  h, w = frame_shape
-  color_np = np.frombuffer(color_buf, np.uint8).reshape((h, w, 3))
-  depth_np = np.frombuffer(depth_buf, np.uint16).reshape((h, w))
-  # frame_lock.acquire()
-  np.copyto(color_np, color)
-  np.copyto(depth_np, depth)
-  # frame_lock.release()
-  if cam2_color is not None:
-    cam2_enable.value = True
-    _, color2 = cv2.imencode('.png', cam2_color, encoding_params)
-    color2_buf.value = pickle.dumps(color2, 0)
-
-def set_secondary_frame(color: np.ndarray):
-  """Set the outgoing color frame of the second camera
-
-  Args:
-      color (np.ndarray): color frame of the second camera
+      color (np.ndarray, optional): Realsense Camera color frame. Defaults to None.
+      depth (np.ndarray, optional): Realsense Camera depth frame. Defaults to None.
+      color2 (np.ndarray, optional): second camera color frame. Defaults to None.
   """
   h, w = frame_shape
-  if color is not None:
-    cam2_enable.value = True
-    _, color2 = cv2.imencode('.png', color, encoding_params)
-    color2_buf.value = pickle.dumps(color2, 0)
+  color_np = np.frombuffer(color_buf, np.uint8)
+  depth_np = np.frombuffer(depth_buf, np.uint8)
+  color2_np = np.frombuffer(color2_buf, np.uint8)
+  if color is not None and depth is not None:
+    color = qoi.encode(color)
+    depth = qoi.encode(depth.view(np.uint8).reshape((h, w // 2, 4)))
+  if color2 is not None:
+    color2_en.value = True
+    color2 = qoi.encode(color2)
+  frame_lock.acquire()
+  if color is not None and depth is not None:
+    np.copyto(color_np[:len(color)], np.frombuffer(color, np.uint8))
+    color_np[len(color)] = 0
+    np.copyto(depth_np[:len(depth)], np.frombuffer(depth, np.uint8))
+    depth_np[len(depth)] = 0
+    color_len.value = len(color)
+    depth_len.value = len(depth)
+  if color2 is not None:
+    np.copyto(color2_np[:len(color2)], np.frombuffer(color2, np.uint8))
+    color2_np[len(color2)] = 0
+    color2_len.value = len(color2)
+  frame_lock.release()
 
 def write(values, voltage_level=None):
   """Send sensor values and voltage to remote location
