@@ -252,7 +252,6 @@ def set_frames(color: np.ndarray=None, depth: np.ndarray=None, color2: np.ndarra
   color_np = np.frombuffer(color_buf, np.uint8)
   depth_np = np.frombuffer(depth_buf, np.uint8)
   color2_np = np.frombuffer(color2_buf, np.uint8)
-  color, depth, color2 = None, None, None
   if color is not None and depth is not None:
     color = qoi.encode(color)
     depth = qoi.encode(depth.view(np.uint8).reshape((h, w // 2, 4)))
