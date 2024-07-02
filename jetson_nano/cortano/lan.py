@@ -68,9 +68,9 @@ async def sender(websocket):
       frame_len = [color_len.value, depth_len.value]
       frames = [color_np[:color_len.value].tobytes(), depth_np[:depth_len.value].tobytes()]
       # tobytes() might be slow but hopefully good enough
-      # if color2_en.value:
-      #   frame_len.append(color2_len.value)
-      #   frames.append(color2_np[:color2_len.value].tobytes())
+      if color2_en.value:
+        frame_len.append(color2_len.value)
+        frames.append(color2_np[:color2_len.value].tobytes())
       frame_lock.release()
 
       sensor_values.acquire()

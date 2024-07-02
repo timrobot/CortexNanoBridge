@@ -7,7 +7,12 @@ if __name__ == "__main__":
   robot = VexCortex("/dev/ttyUSB0")
   lan.start(port=9999, robot=robot)
   second_cam_path = getNextWebcamPath()
-  second_camera = None if second_cam_path is None else cv2.VideoCapture(second_cam_path)
+  second_camera = None
+  if second_cam_path is not None:
+    second_camera = cv2.VideoCapture(second_cam_path)
+    second_camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+    second_camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 360)
+    second_camera.set(cv2.CAP_PROP_FPS, 30)
 
   try:
     while robot.running():
