@@ -49,28 +49,28 @@ async def sender(websocket):
   color_np = np.frombuffer(color_buf, np.uint8)
   depth_np = np.frombuffer(depth_buf, np.uint8)
   color2_np = np.frombuffer(color2_buf, np.uint8)
-  last_tx_time = None
+  # last_tx_time = None
 
   while _running.value:
     try:
       # throttle communication so that we don't bombard the socket connection
       curr_time = datetime.now()
-      dt = tx_interval if last_tx_time is None else (curr_time - last_tx_time).total_seconds()
-      if dt < tx_interval:
-        await asyncio.sleep(tx_interval - dt)
-        last_tx_time = datetime.now()
-      else:
-        last_tx_time = curr_time
+      # dt = tx_interval if last_tx_time is None else (curr_time - last_tx_time).total_seconds()
+      # if dt < tx_interval:
+      #   await asyncio.sleep(tx_interval - dt)
+      #   last_tx_time = datetime.now()
+      # else:
+      #   last_tx_time = curr_time
 
-      frame_str = None
+      frames = []
       frame_len = []
       frame_lock.acquire()
-      frame_len.append(color_len.value)
-      frame_len.append(depth_len.value)
-      frame_str = color_np[:color_len.value].tobytes() + depth_np[:depth_len.value].tobytes()
-      if color2_en.value:
-        frame_len.append(color2_len.value)
-        frame_str += color2_np[:color2_len.value].tobytes()
+      frame_len = [color_len.value, depth_len.value]
+      frames = [color_np[:color_len.value].tobytes(), depth_np[:depth_len.value].tobytes()]
+      # tobytes() might be slow but hopefully good enough
+      # if color2_en.value:
+      #   frame_len.append(color2_len.value)
+      #   frames.append(color2_np[:color2_len.value].tobytes())
       frame_lock.release()
 
       sensor_values.acquire()
@@ -82,12 +82,12 @@ async def sender(websocket):
         "timestamp": datetime.isoformat(curr_time),
         "sensors": [int(x) for x in sensors[1:]],
         "voltage": int(sensors[0])
-      }).encode("utf-8")
-      msg += frame_str
-      await websocket.send(msg)
+      }).encode()
+
+      await websocket.send([msg] + frames) # sent as an iterable to improve performance
     except websockets.ConnectionClosed:
       logging.warning(datetime.isoformat(datetime.now()) + " Connection closed.")
-      last_tx_time = None
+      # last_tx_time = None
       await asyncio.sleep(1)
 
 async def receiver(websocket):
@@ -261,11 +261,14 @@ def set_frames(color: np.ndarray=None, depth: np.ndarray=None, color2: np.ndarra
   frame_lock.acquire()
   if color is not None and depth is not None:
     np.copyto(color_np[:len(color)], np.frombuffer(color, np.uint8))
+    color_np[len(color)] = 0
     np.copyto(depth_np[:len(depth)], np.frombuffer(depth, np.uint8))
+    depth_np[len(depth)] = 0
     color_len.value = len(color)
     depth_len.value = len(depth)
   if color2 is not None:
     np.copyto(color2_np[:len(color2)], color2)
+    color2_np[len(color2)] = 0
     color2_len.value = len(color2)
   frame_lock.release()
 
