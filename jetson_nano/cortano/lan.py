@@ -83,6 +83,10 @@ send_task1 = None
 send_task2 = None
 send_task3 = None
 
+color_buf = None
+depth_buf = None
+color_buf2 = None
+
 # because the jetson doesn't properly support wchar
 def ip2l(x): return [int(b) for b in x.split('.')]
 def l2ip(x): return "%d.%d.%d.%d" % tuple(x)
@@ -229,6 +233,7 @@ def start(port=9999, robot=None):
       secondaryCam (bool, optional): Reserve the /dev/video* cam port on LAN. Don't set to True if you already opened a camera. Defaults to False.
   """
   global robot_entity, motor_values, sensor_values, sensor_length
+  global color_buf, depth_buf, color_buf2
   global rxtx_task, send_task1, send_task2, send_task3
   robot_entity = robot
 
@@ -243,24 +248,28 @@ def start(port=9999, robot=None):
 
   # we are sending over encoded strings + termination char
   qoi_size = lambda h, w, c: 14 + h * w * (c + 1) + 8 + 2
-  color_buf = RemoteByteBuf(np.prod((frame_shape[0], frame_shape[1], 3)))
-  depth_buf = RemoteByteBuf(qoi_size(frame_shape[0], frame_shape[1] // 2, 4))
-  color2_buf = RemoteByteBuf(np.prod((frame_shape[0], frame_shape[1], 3)))
+  cbuf = RemoteByteBuf(np.prod((frame_shape[0], frame_shape[1], 3)))
+  dbuf = RemoteByteBuf(qoi_size(frame_shape[0], frame_shape[1] // 2, 4))
+  cbuf2 = RemoteByteBuf(np.prod((frame_shape[0], frame_shape[1], 3)))
 
   rxtx_task = Process(target=rxtx_task, args=(
     _stream_host, port, _running, motor_values, sensor_values, sensor_length))
   rxtx_task.start()
 
   send_task1 = Process(target=streamer_worker, args=(
-    _stream_host, port-1, _running, color_buf.lock, color_buf.buf, color_buf.len, color_buf.en))
+    _stream_host, port-1, _running, cbuf.lock, cbuf.buf, cbuf.len, cbuf.en))
   send_task2 = Process(target=streamer_worker, args=(
-    _stream_host, port-2, _running, depth_buf.lock, depth_buf.buf, depth_buf.len, depth_buf.en))
+    _stream_host, port-2, _running, dbuf.lock, dbuf.buf, dbuf.len, dbuf.en))
   send_task3 = Process(target=streamer_worker, args=(
-    _stream_host, port-3, _running, color2_buf.lock, color2_buf.buf, color2_buf.len, color2_buf.en))
+    _stream_host, port-3, _running, cbuf2.lock, cbuf2.buf, cbuf2.len, cbuf2.en))
 
   send_task1.start()
   send_task2.start()
   send_task3.start()
+
+  color_buf = cbuf
+  depth_buf = dbuf
+  color_buf2 = cbuf2
 
 def stop():
   global send_task1, send_task2, send_task3, rxtx_task
@@ -289,7 +298,7 @@ def set_frames(color: np.ndarray=None, depth: np.ndarray=None, color2: np.ndarra
     color_buf.copyfrom(color)
     depth_buf.copyfrom(depth)
   if color2 is not None:
-    color2_buf.copyfrom(color2)
+    color_buf2.copyfrom(color2)
 
 def write(values, voltage_level=None):
   """Send sensor values and voltage to remote location
