@@ -102,6 +102,7 @@ async def streamer(port, msg_buf):
     _stream_host.release()
     try:
       if host != "0.0.0.0":
+        print("sending frame on port " + str(port))
         msg = msg_buf.asbytes()
         async with websockets.connect("ws://" + host + ":" + str(port)) as websocket:
           await websocket.send(msg)
@@ -193,6 +194,7 @@ async def handle_rxtx(websocket, path):
 
 async def request_handler(host, port):
   async with websockets.serve(handle_rxtx, host, port):
+    print("Created req handler on " + host + ":" + str(port))
     try:
       await asyncio.Future()
     except asyncio.exceptions.CancelledError:
