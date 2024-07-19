@@ -112,7 +112,7 @@ def streamer_worker(host, port, run, lock, buf, len, en):
 
   _running = run
   main_loop = asyncio.new_event_loop()
-  stream_task = main_loop.create_task(streamer(host, port, msg_buf))
+  stream_task = main_loop.create_task(streamer(port, msg_buf))
 
   for signo in [signal.SIGINT, signal.SIGTERM]:
     main_loop.add_signal_handler(signo, stream_task.cancel)
