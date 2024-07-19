@@ -27,7 +27,7 @@ class RemoteByteBuf:
   def __init__(self, size=None):
     self.lock = Lock()
     self.size = size
-    self.buf = None if (size is None) else RawArray(c_uint8, np.prod(self.size))
+    self.buf = None if (size is None) else RawArray(c_uint8, int(np.prod(self.size)))
     self.len = Value(c_int, 0)
     self.en = Value(c_bool, False)
 
