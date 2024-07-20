@@ -254,7 +254,7 @@ def start(port=9999, robot=None):
   dbuf = RemoteByteBuf(qoi_size(frame_shape[0], frame_shape[1] // 2, 4))
   cbuf2 = RemoteByteBuf(np.prod((frame_shape[0], frame_shape[1], 3)))
 
-  rxtx_task = Process(target=rxtx_task, args=(
+  rxtx_task = Process(target=rxtx_worker, args=(
     _stream_host, port, _running, motor_values, sensor_values, sensor_length))
   rxtx_task.start()
 
