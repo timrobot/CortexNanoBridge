@@ -193,6 +193,7 @@ class VexCortex:
       raise Exception("Already created VexCortex")
 
     self.baud = baud
+    self.motor_max = 127
     self._enabled = Value(c_bool, True)
     self._keep_running = RawValue(c_bool, True)
     self._connected = RawValue(c_bool, False)
