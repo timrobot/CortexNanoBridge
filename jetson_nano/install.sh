@@ -28,14 +28,6 @@ else
   sudo usermod -a -G tty $USER
 fi
 
-# worker enable
-echo "enabling nvcortexnano.service. to disable, run the following cmd:"
-echo "sudo systemctl disable nvcortexnano.service"
-echo ""
+# just in case we want to "reset" everything to its original state, disable the service
 sudo systemctl disable nvcortexnano.service
-sudo cp scripts/nvcortexnano.service /lib/systemd/system/
-sudo systemctl enable nvcortexnano.service
-sudo systemctl daemon-reload
-sudo systemctl start nvcortexnano.service
-
 echo "done installing, reboot your Jetson Nano"
