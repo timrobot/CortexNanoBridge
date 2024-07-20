@@ -21,7 +21,7 @@ import qoi
 
 # shared variables
 frame_shape = (360, 640)
-tx_interval = 1 / 120
+tx_interval = 1 / 60
 
 class RemoteByteBuf:
   def __init__(self, size=None):
@@ -102,7 +102,6 @@ async def streamer(port, msg_buf):
     _stream_host.release()
     try:
       if host != "0.0.0.0":
-        print("sending frame on port " + str(port))
         msg = msg_buf.asbytes()
         async with websockets.connect("ws://" + host + ":" + str(port)) as websocket:
           await websocket.send(msg)
@@ -194,7 +193,6 @@ async def handle_rxtx(websocket, path):
 
 async def request_handler(host, port):
   async with websockets.serve(handle_rxtx, host, port):
-    print("Created req handler on " + host + ":" + str(port))
     try:
       await asyncio.Future()
     except asyncio.exceptions.CancelledError:
@@ -290,9 +288,11 @@ def set_frames(color: np.ndarray=None, depth: np.ndarray=None, color2: np.ndarra
       depth (np.ndarray, optional): Realsense Camera depth frame. Defaults to None.
       color2 (np.ndarray, optional): second camera color frame. Defaults to None.
   """
-  h, w = frame_shape
   if color is not None and depth is not None:
     color = pickle.dumps(cv2.imencode('.jpg', color, _color_encoding_parameters), 0)
+    h, w = depth.shape
+    depth = depth.reshape((h // 2, 2, w // 2, 2)).max((1, 3)) # 2x2 maxpool
+    h, w = depth.shape
     depth = qoi.encode(depth.view(np.uint8).reshape((h, w // 2, 4)))
   if color2 is not None:
     color2 = pickle.dumps(cv2.imencode('.jpg', color2, _color_encoding_parameters), 0)
