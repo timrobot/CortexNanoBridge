@@ -70,6 +70,7 @@ class RemoteByteBuf:
 _color_encoding_parameters = [int(cv2.IMWRITE_JPEG_QUALITY), 90]
 
 motor_values = None
+motor_max = 1.0
 sensor_values = None # [voltage, sensor1, sensor2, ...]
 sensor_length = Value(c_int, 0)
 
@@ -171,7 +172,7 @@ async def receiver(websocket):
       motors = msg["motors"]
       if len(motors) == 10:
         motor_values.acquire()
-        motor_values[:] = motors
+        motor_values[:] = [int(motor_max / 1000. * val) for val in motors]
         motor_values.release()
         last_rx_time.acquire()
         last_rx_time.value = datetime.isoformat(datetime.now()).encode()
@@ -202,10 +203,11 @@ async def request_handler(host, port):
       logging.error(e)
       sys.exit(1)
 
-def rxtx_worker(host, port, run, mvals, svals, slen):
+def rxtx_worker(host, port, run, mvals, mmax, svals, slen):
   global main_loop, _running, _stream_host
-  global motor_values, sensor_values, sensor_length
+  global motor_values, motor_max, sensor_values, sensor_length
   motor_values = mvals
+  motor_max = mmax
   sensor_values = svals
   sensor_length = slen
   _stream_host = host
@@ -241,10 +243,12 @@ def start(port=9999, robot=None):
     motor_values  = robot_entity._motor_values._data
     sensor_values = robot_entity._sensor_values._data
     sensor_length = robot_entity._num_sensors
+    motor_max = robot_entity.motor_max
   else:
     motor_values  = Array(c_int, 10)
     sensor_values = Array(c_int, 21)
     sensor_length.value = 1
+    motor_max = 1
 
   # we are sending over encoded strings + termination char
   qoi_size = lambda h, w, c: 14 + h * w * (c + 1) + 8 + 2
@@ -253,7 +257,7 @@ def start(port=9999, robot=None):
   cbuf2 = RemoteByteBuf(np.prod((frame_shape[0], frame_shape[1], 3)))
 
   rxtx_task = Process(target=rxtx_worker, args=(
-    _stream_host, port, _running, motor_values, sensor_values, sensor_length))
+    _stream_host, port, _running, motor_values, motor_max, sensor_values, sensor_length))
   rxtx_task.start()
 
   send_task1 = Process(target=streamer_worker, args=(
