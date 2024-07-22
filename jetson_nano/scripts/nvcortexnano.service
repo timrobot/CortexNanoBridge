@@ -1,10 +1,10 @@
 [Unit]
-Description=Remote Robot Worker
+Description=Remote Robot Worker (Cortex)
 After=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3.6 /usr/local/cortano/worker.py
+ExecStart=/usr/bin/python3.6 /usr/local/cortano/cortex-worker.py
 Restart=on-failure
 RestartSec=5
 KillMode=mixed

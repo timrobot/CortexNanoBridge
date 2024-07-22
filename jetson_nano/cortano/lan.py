@@ -74,6 +74,10 @@ motor_max = 1.0
 sensor_values = None # [voltage, sensor1, sensor2, ...]
 sensor_length = Value(c_int, 0)
 
+color_buf = None
+depth_buf = None
+color_buf2 = None
+
 main_loop = None
 _running = Value(c_bool, True)
 last_rx_time = Array(c_char, 100)
@@ -83,10 +87,6 @@ rxtx_task = None
 send_task1 = None
 send_task2 = None
 send_task3 = None
-
-color_buf = None
-depth_buf = None
-color_buf2 = None
 
 # because the jetson doesn't properly support wchar
 def ip2l(x): return [int(b) for b in x.split('.')]
@@ -231,19 +231,16 @@ def start(port=9999, robot=None):
   Args:
       port (int, optional): Websocket port. Defaults to 9999.
       robot (_type_, optional): Vex Serial entity. Defaults to None.
-      realsense (_type_, optional): _description_. Defaults to None.
-      secondaryCam (bool, optional): Reserve the /dev/video* cam port on LAN. Don't set to True if you already opened a camera. Defaults to False.
   """
-  global robot_entity, motor_values, sensor_values, sensor_length
+  global motor_values, motor_max, sensor_values, sensor_length
   global color_buf, depth_buf, color_buf2
   global rxtx_task, send_task1, send_task2, send_task3
-  robot_entity = robot
 
-  if robot_entity is not None:
-    motor_values  = robot_entity._motor_values._data
-    sensor_values = robot_entity._sensor_values._data
-    sensor_length = robot_entity._num_sensors
-    motor_max = robot_entity.motor_max
+  if robot is not None:
+    motor_values  = robot._motor_values._data
+    sensor_values = robot._sensor_values._data
+    sensor_length = robot._num_sensors
+    motor_max = robot.motor_max
   else:
     motor_values  = Array(c_int, 10)
     sensor_values = Array(c_int, 21)
