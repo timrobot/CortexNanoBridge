@@ -32,6 +32,14 @@ void SetMotors(std::vector<int>& motor_values) {
   /**
    * User defined motors get set here!
    */
+
+  char motor_val_str[128] = {0};
+  sprintf(motor_val_str, "Motors: %d %d %d %d %d %d %d %d %d %d                                ",
+    motor_values[0], motor_values[1], motor_values[2], motor_values[3], motor_values[4],
+    motor_values[5], motor_values[6], motor_values[7], motor_values[8], motor_values[9]
+  );
+  Brain.Screen.printAt(10, 70, motor_val_str);
+
   int left = MATH_CLIP(motor_values[LeftMotor.index()], -100, 100);
   if (left < 0) {
     LeftMotor.spin(vex::directionType::rev, -left, vex::percentUnits::pct);
@@ -99,6 +107,7 @@ std::vector<short> ReadSensors() {
 #define CMD_CONTROL_MOTOR_VALUES      ('M')
 #define CMD_STATUS_SENSOR_VALUES      ('S')
 #define CMD_STATUS_DEBUG              ('I')
+#define CMD_INFO_IP                   ('W')
 
 #define MSGLEN     (256-2)
 
@@ -121,6 +130,7 @@ static message_t _sensor_value_message;
 
 // read/write bufs
 static std::vector<int> _motor_values(MAX_MTR_CNT, 0);
+static std::vector<int> _motor_values_P(MAX_MTR_CNT, 0); // use P to reduce noise
 
 #define ISHEX4(v)   (((v) >= '0' && (v) <= '9') || ((v) >= 'a' && (v) <= 'f'))
 #define TOHEX4(v)   (((v) <= 9)   ? (v)+'0' : (v)+'a'-10)
@@ -142,35 +152,42 @@ typedef struct _comms {
     // storage to help with checking rx buffer
     int             peekChar;
 
+    // last rx time (safety check)
+    struct time     lastrxtime;
+
 } comms_t;
 
 static comms_t MyComms;
 
 int
-ReceiveData() {
-  uint8_t     *ptr, c, delim_found = 0;
-
-  for (ptr = MyComms.rxbuf; *ptr != 0; ptr++) {
-    c = *ptr;
-    if (c == '[') {
-      // We've recv'd new start, so reset pointer
-      // initial partial data will be dropped
-      MyComms.rxcnt = 0;
-    }
-    MyComms.rxbuf[MyComms.rxcnt++] = c;
-    if( MyComms.rxcnt == RX_BUF_SIZE )
-      return( RX_BUF_ERR );
-    if (c == ']') {
-      delim_found = 1;
-      memcpy(&_motor_value_message.data[0], &MyComms.rxbuf[0], MyComms.rxcnt);
-      _motor_value_message.data[MyComms.rxcnt] = 0;
-      _motor_value_message.length = MyComms.rxcnt;
-      MyComms.rxcnt = 0;
+ExtractMessage() {
+  int     msg_found = 0;
+  
+  char *end = strrchr((char *)MyComms.rxbuf, ']');
+  if (end != NULL) {
+    char temp = end[1];
+    end[1] = 0;
+    char *start = strrchr((char *)MyComms.rxbuf, '[');
+    if (start != NULL) {
+      strcpy((char *)_motor_value_message.data, start);
+      _motor_value_message.length = (int)(end - start + 1);
+      end[1] = temp;
+      MyComms.rxcnt -= (int)(end + 1 - (char *)MyComms.rxbuf);
+      memmove((void *)MyComms.rxbuf, (void *)&end[1], MyComms.rxcnt);
+      MyComms.rxbuf[MyComms.rxcnt] = 0;
+      msg_found = 1;
+    } else {
+      end[1] = temp;
     }
   }
-  MyComms.rxbuf[MyComms.rxcnt] = 0;
 
-  if (delim_found && _motor_value_message.data[0] == '[') {
+  if (MyComms.rxcnt > (256 + 32)) {
+    memmove((void *)MyComms.rxbuf, (void *)&MyComms.rxbuf[64], MyComms.rxcnt - 64);
+    MyComms.rxcnt -= 64;
+    MyComms.rxbuf[MyComms.rxcnt] = 0;
+  }
+
+  if (msg_found && _motor_value_message.data[0] == '[') {
     _motor_value_message.cmd = _motor_value_message.data[1];
     return( _motor_value_message.length );
   } else {
@@ -185,15 +202,27 @@ DecodeMessage() {
   char            m1, m2, *p = (char *)msg.data;
   unsigned char   chk_sum, cmd;
 
-  // message: [MLLDDDDDDDDDDDDDDDDDDDDCC]
+  // message: [MLLDDDDDDDDDDDDDDDDDDDDCC] or [WAABBCCDD]
 
   if (*p++ != '[' || msg.data[msg.length-1] != ']') {
     return( FAILURE );
   }
 
   cmd = *p++;
-  if (cmd != CMD_CONTROL_MOTOR_VALUES) {
+  if (cmd != CMD_CONTROL_MOTOR_VALUES && cmd != CMD_INFO_IP) {
     return( FAILURE );
+  }
+
+  if (cmd == CMD_INFO_IP && msg.length == 11) {
+    char ipv4_str[50] = {0};
+    sprintf(ipv4_str, "IPv4: %d.%d.%d.%d             ",
+      (FROMHEX4(p[0]) << 4) + FROMHEX4(p[1]),
+      (FROMHEX4(p[2]) << 4) + FROMHEX4(p[3]),
+      (FROMHEX4(p[4]) << 4) + FROMHEX4(p[5]),
+      (FROMHEX4(p[6]) << 4) + FROMHEX4(p[7])
+    );
+    Brain.Screen.printAt( 10, 50, ipv4_str );
+    return (SUCCESS);
   }
 
   m1 = *p++;
@@ -232,7 +261,7 @@ DecodeMessage() {
     if (!ISHEX4(m1) || !ISHEX4(m2)) {
       return( FAILURE );
     }
-    _motor_values[i] = (int)((FROMHEX4(m1) << 4) + FROMHEX4(m2)) - 0x7F;
+    _motor_values_P[i] = (int)((FROMHEX4(m1) << 4) + FROMHEX4(m2)) - 0x7F;
   }
 
   return( SUCCESS );
@@ -248,25 +277,26 @@ int receiveTask() {
     // the port will remain as a generic serial port until the brain is power cycled
     this_thread::sleep_for(10);
 
+    vexGettime(&MyComms.lastrxtime);
+
     while(1) {
       // check to see if we have any bytes in the receive buffer
-      int nRead = vexGenericSerialReceive( vex::PORT18, MyComms.rxbuf, sizeof(MyComms.rxbuf) );
+      int nRead = vexGenericSerialReceive( vex::PORT18,
+        &MyComms.rxbuf[MyComms.rxcnt], RX_BUF_SIZE - MyComms.rxcnt - 1 );
     
-      // yes ? then set motors
+      // if data found, then decode any message that may exist
       if( nRead > 0 ) {
+        vexGettime(&MyComms.lastrxtime);
         MyComms.rxcnt += nRead;
-        int res = ReceiveData();
+        MyComms.rxbuf[MyComms.rxcnt] = 0;
+        int res = ExtractMessage();
         if (res > 0) {
-          res = DecodeMessage();
-          if (res > 0) {
-            // set the motors as specified
-            SetMotors(_motor_values);
-          }
+          DecodeMessage(); // set the motor values vector
         }
       }
     
       // read often
-      this_thread::sleep_for(5);
+      this_thread::sleep_for(2);
     }
   
     return(0);
@@ -280,7 +310,7 @@ SendMessage(std::vector<short>& sensor_values) {
   int             _value;
   unsigned char   chk_sum = 0, total_bytes = 0;
 
-  int             voltage_level = (int)Brain.Battery.voltage(vex::voltageUnits::mV); // nImmediateBatteryLevel
+  int             voltage_level = (int)Brain.Battery.capacity(); // nImmediateBatteryLevel
 
 
   // We are going to have to use a special fmt to compose the message
@@ -300,8 +330,7 @@ SendMessage(std::vector<short>& sensor_values) {
     *_data++ = 's';
     sprintf(_data, "%04x", _value & 0xFFFF);
     _data += 4;
-    total_bytes += 4;
-    break;
+    total_bytes += 5;
   }
 
   total_bytes += 7; // [ Cmd Len1 Len2 ... ChkSum1 ChkSum2 ]
@@ -338,12 +367,33 @@ int main() {
   // the port will remain as a generic serial port until the brain is power cycled
   this_thread::sleep_for(10);
 
+  struct time currtime;
+
   while(1) {
     std::vector<short> sensor_values = ReadSensors();
     SendMessage(sensor_values);
 
+    vexGettime(&currtime);
+    int dti_hour = (int)currtime.ti_hour - (int)MyComms.lastrxtime.ti_hour;
+    int dti_min  = (int)currtime.ti_min  - (int)MyComms.lastrxtime.ti_min;
+    int dti_sec  = (int)currtime.ti_sec  - (int)MyComms.lastrxtime.ti_sec;
+    int dti_hund = (int)currtime.ti_hund - (int)MyComms.lastrxtime.ti_hund;
+    int dti_msec = (((dti_hour * 60 + dti_min) * 60) + dti_sec) * 1000 + dti_hund;
+    if (dti_msec >= 500) { // safety shutoff
+      for (int i = 0; i < _motor_values.size(); i++) {
+        _motor_values[i] = 0;
+      }
+    } else { // anti-noise ramp
+      for (int i = 0; i < _motor_values.size(); i++) {
+        _motor_values[i] += MATH_CLIP(_motor_values_P[i] - _motor_values[i], -4, 4);
+      }
+    }
+
+    // set motor values here
+    SetMotors(_motor_values);
+
     // Allow other tasks to run
-    // send message every 10mS
+    // send message every 10mS (100Hz)
     this_thread::sleep_for(10);
   }
 }

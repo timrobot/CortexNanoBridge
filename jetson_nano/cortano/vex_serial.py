@@ -5,6 +5,7 @@ import time
 from multiprocessing import Process, Array, RawValue, Value
 from ctypes import c_double, c_bool, c_int
 import logging
+import socket
 
 class IndexableArray:
   def __init__(self, length):
@@ -48,6 +49,13 @@ CMD_STATUS_DEBUG          = 'I'
 CMD_STATUS_SENSOR_VALUES  = 'S'
 CMD_INFO_IP               = 'W'
 MLIMIT = 127
+
+def get_ipv4():
+  s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+  s.connect(("8.8.8.8", 80))
+  addr = s.getsockname()[0]
+  s.close()
+  return addr
 
 def _decode_message(msg):
   if len(msg) == 0: return None
@@ -136,7 +144,8 @@ def _send_ip(connection, ip):
 def _serial_worker(path, baud, motors, sensors, nsensors, enabled, readtime, keep_running, connected, _id=0, _rxch=None):
   rxbuf = ""
   last_tx_time = time.time()
-  happyfeet = 0
+  last_ip_time = time.time()
+
   while keep_running.value:
     if not connected.value:
       try:
@@ -157,7 +166,6 @@ def _serial_worker(path, baud, motors, sensors, nsensors, enabled, readtime, kee
           if _rxch: _rxch.value = _id
           values = _decode_message(rx)
           if values:
-            print("<", values)
             sensors._data.acquire()
             nsensors.value = len(values)
             sensors._data[:len(values)] = values
@@ -185,14 +193,9 @@ def _serial_worker(path, baud, motors, sensors, nsensors, enabled, readtime, kee
         values = motors.clone()
       try:
         _send_message(connection, values)
-        # happyfeet += 1
-        # happyfeet &= 0xFFFFFFFF
-        # a = (happyfeet >> 24) & 0xFF
-        # b = (happyfeet >> 16) & 0xFF
-        # c = (happyfeet >>  8) & 0xFF
-        # d = (happyfeet >>  0) & 0xFF
-        # ipstr = f"{d}.{c}.{b}.{a}"
-        # _send_ip(connection, ipstr)
+        if _rxch and t - last_ip_time >= 1.0: # only if v5
+          last_ip_time = t
+          _send_ip(connection, str(get_ipv4()))
       except serial.SerialTimeoutException as e:
         connection.close()
         connected.value = False
@@ -379,14 +382,3 @@ class VexV5(VexMicrocontroller):
       if self._worker2.is_alive():
         self._worker2.kill()
       self._worker2 = None
-
-if __name__ == "__main__":
-  robot = VexV5()
-  print(robot.path1, robot.path2)
-  idx = 0
-
-  while True:
-    idx += 1
-    idx %= 40
-    robot.motor[0] = idx
-    time.sleep(0.1)
