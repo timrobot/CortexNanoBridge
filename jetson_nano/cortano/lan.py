@@ -71,7 +71,7 @@ _color_encoding_parameters = [int(cv2.IMWRITE_JPEG_QUALITY), 90]
 
 motor_values = None
 motor_max = 1.0
-sensor_values = None # [voltage, sensor1, sensor2, ...]
+sensor_values = None # [battery, sensor1, sensor2, ...]
 sensor_length = Value(c_int, 0)
 
 color_buf = None
@@ -152,7 +152,7 @@ async def sender(websocket):
       msg = json.dumps({
         "timestamp": datetime.isoformat(datetime.now()),
         "sensors": [int(x) for x in sensors[1:]],
-        "voltage": int(sensors[0])
+        "battery": int(sensors[0])
       })
       await websocket.send(msg)
     except websockets.ConnectionClosed:
@@ -303,19 +303,19 @@ def set_frames(color: np.ndarray=None, depth: np.ndarray=None, color2: np.ndarra
   if color2 is not None:
     color_buf2.copyfrom(color2)
 
-def write(values, voltage_level=None):
-  """Send sensor values and voltage to remote location
+def write(values, battery_level=None):
+  """Send sensor values and battery to remote location
 
   Args:
       values (List[int]): sensor values
-      voltage_level (int, optional): voltage of the battery in mV. Defaults to None.
+      battery_level (int, optional): level of the battery in V or percentage. Defaults to None.
   """
   values = [int(x) for x in values]
   sensor_values.acquire()
   nsensors = sensor_length.value = min(20, len(values)) + 1
   sensor_values[1:nsensors] = values
-  if voltage_level is not None:
-    sensor_values[0] = int(voltage_level)
+  if battery_level is not None:
+    sensor_values[0] = int(battery_level if battery_level <= 100 else battery_level * 1000)
   else:
     sensor_values[0] = 0
   sensor_values.release()
