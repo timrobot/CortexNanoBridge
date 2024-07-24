@@ -378,8 +378,8 @@ int main() {
     int dti_min  = (int)currtime.ti_min  - (int)MyComms.lastrxtime.ti_min;
     int dti_sec  = (int)currtime.ti_sec  - (int)MyComms.lastrxtime.ti_sec;
     int dti_hund = (int)currtime.ti_hund - (int)MyComms.lastrxtime.ti_hund;
-    int dti_msec = (((dti_hour * 60 + dti_min) * 60) + dti_sec) * 1000 + dti_hund;
-    if (dti_msec >= 500) { // safety shutoff
+    int dti_msec = ((((dti_hour * 60 + dti_min) * 60) + dti_sec) * 100 + dti_hund) * 10;
+    if (dti_msec >= 1000) { // safety shutoff
       for (int i = 0; i < _motor_values.size(); i++) {
         _motor_values[i] = 0;
       }
