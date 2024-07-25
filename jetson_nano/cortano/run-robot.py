@@ -1,10 +1,8 @@
-from cortano import VexCortex, RealsenseCamera, getNextWebcamPath
-import cv2
+from cortano import VexV5, VexCortex, RealsenseCamera
 
 if __name__ == "__main__":
   realsense = RealsenseCamera()
-  robot = VexCortex("/dev/ttyUSB0") # or use VexV5()
-  # secondCam = cv2.VideoCapture(getNextWebcamPath())
+  robot = VexV5() # or use VexCortex() for the older robot board
 
   while robot.running():
     color, depth = realsense.read()

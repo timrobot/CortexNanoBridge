@@ -33,17 +33,21 @@ sudo ./install.sh
 sudo reboot
 ```
 
-### Local Machine
+### Controlling the Motors
 
 Once pyrealsense has been installed, clone [this repo](https://github.com/timrobot/CortexNanoBridge) to your local machine. Push either
-1. `vex_v5/src/main.cpp` from the VSCode Vex extension to the V5 Brain
-2. `vex_cortex/main_app.c` from the RobotC interface onto the Vex Cortex
+1. `vex_v5/src/main.cpp` from the VSCode Vex extension to the V5 Brain. Plug in the RS485 cables on ports 18 and 20, and plug in their USBs into the Jetson.
+2. `vex_cortex/main_app.c` from the RobotC interface onto the Vex Cortex. Wire the UART Cable to the UART1 pins on the Vex Cortex, and plug in the USB into the Jetson.
 
-*For now we use .sh scripts for installation of both the jetson nano material and the pyrealsense library since the
-PyPI setup isn't working fully.*
+#### Option 1. Jetson Control
 
+Navigate to the `cortano` folder. Copy `run-robot.py` to anywhere. Then run it.
+```bash
+cp CortexNanoBridge/jetson_nano/cortano .
+sudo python3 run-robot.py
+```
 
-#### (Optional) Remote Control from local machine
+#### Option 2. Remote Control from a local machine
 
 On the Jetson, run either
 ```bash
@@ -59,5 +63,4 @@ chmod +x enable-cortex-autostart.sh
 ./enable-cortex-autostart.sh
 ```
 
-Once you have [obtained the ip address](https://learnubuntu.com/check-ip-address/) for the robot, proceed with installing the API onto your laptop to connect:
-https://github.com/timrobot/Cortano
+Then once you have [obtained the ip address](https://learnubuntu.com/check-ip-address/) for the Jetson, proceed with installing the [laptop API](https://github.com/timrobot/Cortano) onto your laptop to connect.
