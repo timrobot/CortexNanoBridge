@@ -71,8 +71,12 @@ _color_encoding_parameters = [int(cv2.IMWRITE_JPEG_QUALITY), 90]
 
 motor_values = None
 motor_max = 1.0
-sensor_values = None # [voltage, sensor1, sensor2, ...]
+sensor_values = None # [battery, sensor1, sensor2, ...]
 sensor_length = Value(c_int, 0)
+
+color_buf = None
+depth_buf = None
+color_buf2 = None
 
 main_loop = None
 _running = Value(c_bool, True)
@@ -83,10 +87,6 @@ rxtx_task = None
 send_task1 = None
 send_task2 = None
 send_task3 = None
-
-color_buf = None
-depth_buf = None
-color_buf2 = None
 
 # because the jetson doesn't properly support wchar
 def ip2l(x): return [int(b) for b in x.split('.')]
@@ -152,7 +152,7 @@ async def sender(websocket):
       msg = json.dumps({
         "timestamp": datetime.isoformat(datetime.now()),
         "sensors": [int(x) for x in sensors[1:]],
-        "voltage": int(sensors[0])
+        "battery": int(sensors[0])
       })
       await websocket.send(msg)
     except websockets.ConnectionClosed:
@@ -231,19 +231,16 @@ def start(port=9999, robot=None):
   Args:
       port (int, optional): Websocket port. Defaults to 9999.
       robot (_type_, optional): Vex Serial entity. Defaults to None.
-      realsense (_type_, optional): _description_. Defaults to None.
-      secondaryCam (bool, optional): Reserve the /dev/video* cam port on LAN. Don't set to True if you already opened a camera. Defaults to False.
   """
-  global robot_entity, motor_values, sensor_values, sensor_length
+  global motor_values, motor_max, sensor_values, sensor_length
   global color_buf, depth_buf, color_buf2
   global rxtx_task, send_task1, send_task2, send_task3
-  robot_entity = robot
 
-  if robot_entity is not None:
-    motor_values  = robot_entity._motor_values._data
-    sensor_values = robot_entity._sensor_values._data
-    sensor_length = robot_entity._num_sensors
-    motor_max = robot_entity.motor_max
+  if robot is not None:
+    motor_values  = robot._motor_values._data
+    sensor_values = robot._sensor_values._data
+    sensor_length = robot._num_sensors
+    motor_max = robot.motor_max
   else:
     motor_values  = Array(c_int, 10)
     sensor_values = Array(c_int, 21)
@@ -306,19 +303,19 @@ def set_frames(color: np.ndarray=None, depth: np.ndarray=None, color2: np.ndarra
   if color2 is not None:
     color_buf2.copyfrom(color2)
 
-def write(values, voltage_level=None):
-  """Send sensor values and voltage to remote location
+def write(values, battery_level=None):
+  """Send sensor values and battery to remote location
 
   Args:
       values (List[int]): sensor values
-      voltage_level (int, optional): voltage of the battery in mV. Defaults to None.
+      battery_level (int, optional): level of the battery in V or percentage. Defaults to None.
   """
   values = [int(x) for x in values]
   sensor_values.acquire()
   nsensors = sensor_length.value = min(20, len(values)) + 1
   sensor_values[1:nsensors] = values
-  if voltage_level is not None:
-    sensor_values[0] = int(voltage_level)
+  if battery_level is not None:
+    sensor_values[0] = int(battery_level if battery_level <= 100 else battery_level * 1000)
   else:
     sensor_values[0] = 0
   sensor_values.release()

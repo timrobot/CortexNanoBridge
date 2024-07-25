@@ -35,7 +35,8 @@ from .lan import (
 from .vex_serial import (
     MLIMIT,
     IndexableArray,
-    VexCortex
+    VexCortex,
+    VexV5
 )
 
 __version__ = '0.0.5'

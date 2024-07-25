@@ -1,3 +1,3 @@
 #!/bin/sh
-echo "Getting status of nvcortexnano.service..."
-sudo systemctl status nvcortexnano.service
+echo "Getting status of service..."
+sudo systemctl status nvv5nano.service
