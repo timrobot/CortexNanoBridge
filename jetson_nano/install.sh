@@ -11,7 +11,9 @@ echo "installing dependencies"
 sudo python3 install.py
 sudo python3 -m pip install .
 
-if [[ "$PYTHON3VERSION" == "3.6" ]]; then
+if [[ "$PYTHON3VERSION" != "3.6" ]]; then
+  echo "qoi not added to requirements.txt"
+else
   echo "installing qoi for py36arm"
   sudo cp -r qoi /usr/local/lib/python3.6/dist-packages
 fi
