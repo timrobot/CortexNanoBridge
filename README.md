@@ -35,17 +35,64 @@ sudo reboot
 
 ### Controlling the Motors
 
-Once pyrealsense has been installed, clone [this repo](https://github.com/timrobot/CortexNanoBridge) to your local machine. Push either
-1. `vex_v5/src/main.cpp` from the VSCode Vex extension to the V5 Brain. Plug in the RS485 cables on ports 18 and 20, and plug in their USBs into the Jetson.
-2. `vex_cortex/main_app.c` from the RobotC interface onto the Vex Cortex. Wire the UART Cable to the UART1 pins on the Vex Cortex, and plug in the USB into the Jetson.
+On your local machine, clone [this repo](https://github.com/timrobot/CortexNanoBridge). Push either
+1. `vex_v5/src/main.cpp` from the [VSCode Vex extension](https://www.vexrobotics.com/vexcode/vscode-extension) to the V5 Brain. Plug in the RS485 cables on ports 18 and 20, and plug in their USBs into the Jetson.
+2. `vex_cortex/main_app.c` from the [RobotC interface](https://www.robotc.net/) onto the Vex Cortex. Wire the UART Cable to the UART1 pins on the Vex Cortex, and plug in the USB into the Jetson.
 
 #### Option 1. Jetson Control
 
-Navigate to the `cortano` folder. Copy `run-robot.py` to anywhere. Then run it.
+Copy `CortexNanoBridge/jetson_nano/run-robot.py` to anywhere you wish. Then run it.
 ```bash
 cp CortexNanoBridge/jetson_nano/cortano .
 sudo python3 run-robot.py
 ```
+
+Alternatively, you can create a basic script on the Jetson nano, which does the same thing:
+```python
+from cortano import VexV5, RealsenseCamera
+
+if __name__ == "__main__":
+  realsense = RealsenseCamera()
+  robot = VexV5()
+
+  while robot.running():
+    color, depth = realsense.read()
+    sensors, battery = robot.sensors()
+    robot.motor[0] = 0 # you can set this to any value from -100 to 100
+    robot.motor[9] = 0
+```
+
+### Action Space (V5)
+
+| Num | Action | Control Min | Control Max | Unit |
+| --- | ------ | ----------- | ----------- | ---- |
+| 0 | Angular velocity target of the left motor | -100 | 100 | percent |
+| 1 | ❌ |  |  |  |
+| 2 | Angular velocity target of the claw | -100 | 100 | percent |
+| 3 | ❌ |  |  |  |
+| 4 | ❌ |  |  |  |
+| 5 | ❌ |  |  |  |
+| 6 | ❌ |  |  |  |
+| 7 | Angular velocity target of the arm | -100 | 100 | percent |
+| 8 | ❌ |  |  |  |
+| 9 | Angular velocity target of the right motor | -100 | 100 | percent |
+
+### Observation Space
+
+| Num | Action | Min | Max | Unit |
+| --- | ------ | --- | --- | ---- |
+| 0  | Left Motor ang position | -inf | inf | position (degrees) |
+| 1  | Left Motor ang velocity | -inf | inf | velocity (degrees/second) |
+| 2  | Left Motor torque | -inf | inf | Nm * 1e3 |
+| 3  | Right Motor ang position | -inf | inf | position (degrees) |
+| 4  | Right Motor ang velocity | -inf | inf | velocity (degrees/se5ond) |
+| 5  | Right Motor torque | -inf | inf | Nm * 1e3 |
+| 6  | Arm ang position | -inf | inf | position (degrees) |
+| 7  | Arm ang velocity | -inf | inf | velocity (degrees/second) |
+| 8  | Arm torque | -inf | inf | Nm * 1e3 |
+| 9  | Claw ang position | -inf | inf | position (degrees) |
+| 10 | Claw ang velocity | -inf | inf | velocity (degrees/second) |
+| 11 | Claw torque | -inf | inf | Nm * 1e3 |
 
 #### Option 2. Remote Control from a local machine
 
@@ -63,4 +110,4 @@ chmod +x enable-cortex-autostart.sh
 ./enable-cortex-autostart.sh
 ```
 
-Then once you have [obtained the ip address](https://learnubuntu.com/check-ip-address/) for the Jetson, proceed with installing the [laptop API](https://github.com/timrobot/Cortano) onto your laptop to connect.
+Then once you have [obtained the ip address](https://learnubuntu.com/check-ip-address/) for the Jetson, proceed with installing the [laptop API](https://github.com/timrobot/Cortano) onto your local machine to connect.
