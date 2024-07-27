@@ -1,6 +1,6 @@
 ## Cortex Nano Bridge
 
-This library is meant to be a lightweight bridge between the VEX robotics systems and the Jetson (Orin) Nano. Note that different versions of JetPack may cause the installation to deviate from this guide, and unfortunately that means that this guide will be quite terse. However, once you are able to set up the bridge, the rest should be easy.
+This library is meant to be a lightweight bridge between the VEX V5 or Cortex systems and the Jetson (Orin) Nano. Note that different versions of Jetson and VEX systems have different library support and behaviors, and unfortunately that means that this guide will be quite involved. However, once you are able to set up the bridge, creating your robot code should be straightforward.
 
 ### Getting Started
 Follow the [Jetson Orin Nano guide](https://developer.nvidia.com/embedded/learn/get-started-jetson-orin-nano-devkit) or the [Jetson Nano Guide](https://developer.nvidia.com/embedded/learn/get-started-jetson-nano-devkit). Remember to set "log in automatically" instead of "require my password to log in". Set power usage to 15W (Jetson Orin Nano) or MAXN (Jetson Nano). Expand storage to max size as shown (ie. 59300).
