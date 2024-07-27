@@ -1,7 +1,11 @@
-### Setting up your Jetson (Orin) Nano
-Follow the [Jetson Orin Nano guide](https://developer.nvidia.com/embedded/learn/get-started-jetson-orin-nano-devkit) or the [Jetson Nano Guide](https://developer.nvidia.com/embedded/learn/get-started-jetson-nano-devkit). Remember to set "log in automatically" instead of "require my password to log in". Set power usage to MAXN (not 5W). Expand storage to max size as shown (ie. 59300).
+## Cortex Nano Bridge
 
-### Robot Package Installation
+This library is meant to be a lightweight bridge between the VEX robotics systems and the Jetson (Orin) Nano. Note that different versions of JetPack may cause the installation to deviate from this guide, and unfortunately that means that this guide will be quite terse. However, once you are able to set up the bridge, the rest should be easy.
+
+### Getting Started
+Follow the [Jetson Orin Nano guide](https://developer.nvidia.com/embedded/learn/get-started-jetson-orin-nano-devkit) or the [Jetson Nano Guide](https://developer.nvidia.com/embedded/learn/get-started-jetson-nano-devkit). Remember to set "log in automatically" instead of "require my password to log in". Set power usage to 15W (Jetson Orin Nano) or MAXN (Jetson Nano). Expand storage to max size as shown (ie. 59300).
+
+### Jetson Package Installation
 
 Once you are logged in, open a Terminal, and type in the update cmds below.
 Try to keep all default (N) options as it prompts you for a choice. If you pick (Y), don't worry - as long as it boots you are good to go. You don't have to restart docker daemon.
@@ -16,38 +20,50 @@ sudo apt-get install python3-pip
 sudo pip3 install --upgrade pip
 sudo pip3 install pyserial numpy scipy websockets requests
 sudo apt-get install python3-opencv
-```
-
-Then, after downloading and unzipping the pyrealsense library from this [package](https://1drv.ms/u/c/8c3293b14db03b6a/EZwnQdvx1BhGig5cujsEzWsB_hDSkxKt6gR09siBo1fkGw?e=0IuBHC), install it:
-```bash
-cd /path/to/pyrealsense
-sudo ./install.sh
+sudo pip3 install pyrealsense2 qoi
 ```
 
 Clone [this repo](https://github.com/timrobot/CortexNanoBridge) to the Jetson, navigate to the `jetson_nano/` folder and run the installer:
 ```bash
 git clone https://github.com/timrobot/CortexNanoBridge.git
 cd CortexNanoBridge/jetson_nano
-chmod +x install.sh
-sudo ./install.sh
+sudo bash ./install.sh
 sudo reboot
 ```
 
-### Controlling the Motors
+#### Jetson Nano only
+Pyrealsense2 does not exist on python3.6, and neither does qoi. So, after downloading and unzipping the pyrealsense library from this [package](https://1drv.ms/u/c/8c3293b14db03b6a/EZwnQdvx1BhGig5cujsEzWsB_hDSkxKt6gR09siBo1fkGw?e=0IuBHC), install both:
+```bash
+cd /path/to/pyrealsense
+sudo bash ./install.sh
+cd /path/to/CortexNanoBridge/jetson_nano
+sudo cp -r qoi /usr/local/lib/python3.6/dist-packages
+```
 
-On your local machine, clone [this repo](https://github.com/timrobot/CortexNanoBridge). Push either
-1. `vex_v5/src/main.cpp` from the [VSCode Vex extension](https://www.vexrobotics.com/vexcode/vscode-extension) to the V5 Brain. Plug in the RS485 cables on ports 18 and 20, and plug in their USBs into the Jetson.
-2. `vex_cortex/main_app.c` from the [RobotC interface](https://www.robotc.net/) onto the Vex Cortex. Wire the UART Cable to the UART1 pins on the Vex Cortex, and plug in the USB into the Jetson.
+### VEX Microcontroller Installation
+
+In addition to installing the library on the Jetson Nano, we will need to push comms code to the robot controller. On your laptop or desktop, clone [this repo](https://github.com/timrobot/CortexNanoBridge) so that we can upload the comms code. You will only have to do this once.
+
+#### V5 Brain
+1. Install the [VEX Extension for VSCode](https://www.vexrobotics.com/vexcode/vscode-extension). Connect a microusb cable to the V5 Brain, and update firmware.
+2. Create a new VEX Project > V5 > C/C++ > Clawbot Template (Motors). Copy `CortexNanoBridge/vex_v5/src/main.cpp` to the new project's `src/` folder. Build and download the code to the V5 Brain, and disconnect the microusb cable.
+3. Plug in the RS485 cables on ports 18 and 20, and plug in their USBs into the Jetson. Run the application from the V5 Brain screen.
+
+#### VEX Cortex
+1. Install the [RobotC GUI](https://www.robotc.net/). Connect a usb cable to the Cortex, and update firmware. Remember to select (USB only) mode from the communication style menu.
+2. Open `CortexNanoBridge/vex_cortex/main_app.c`. Compile and download the code to the Cortex, and disconnect the usb cable.
+3. Wire the UART Cable to the UART1 pins on the Cortex, and plug in the USB into the Jetson.
+
+Congratulations, you have finished setting everything up for the bridge! 👏
+
+## Running Basic Code
+
+You have two options to control your robot. If you have the Jetson Nano and a beefy desktop or laptop GPU, it is highly recommended that you do option 2.
 
 #### Option 1. Jetson Control
 
-Copy `CortexNanoBridge/jetson_nano/run-robot.py` to anywhere you wish. Then run it.
-```bash
-cp CortexNanoBridge/jetson_nano/cortano .
-sudo python3 run-robot.py
-```
+Remember to plug in your Realsense camera into the robot if you wish to get the color and depth frames.
 
-Alternatively, you can create a basic script on the Jetson nano, which does the same thing:
 ```python
 from cortano import VexV5, RealsenseCamera
 
@@ -77,7 +93,7 @@ if __name__ == "__main__":
 | 8 | ❌ |  |  |  |
 | 9 | Angular velocity target of the right motor | -100 | 100 | percent |
 
-### Observation Space
+### Observation Space (V5)
 
 | Num | Action | Min | Max | Unit |
 | --- | ------ | --- | --- | ---- |
@@ -94,20 +110,23 @@ if __name__ == "__main__":
 | 10 | Claw ang velocity | -inf | inf | velocity (degrees/second) |
 | 11 | Claw torque | -inf | inf | Nm * 1e3 |
 
-#### Option 2. Remote Control from a local machine
+#### Option 2. Remote Control from a Laptop or Desktop
 
-On the Jetson, run either
+On the Jetson, run either of the following to enable to automagical websocket communication stack.
 ```bash
 # Vex V5 Brain
 cd CortexNanoBridge/jetson_nano/scripts
-chmod +x enable-v5-autostart.sh
-./enable-v5-autostart.sh
+bash ./enable-v5-autostart.sh
 ```
 ```bash
 # Vex Cortex
 cd CortexNanoBridge/jetson_nano/scripts
-chmod +x enable-cortex-autostart.sh
-./enable-cortex-autostart.sh
+bash ./enable-cortex-autostart.sh
 ```
 
-Then once you have [obtained the ip address](https://learnubuntu.com/check-ip-address/) for the Jetson, proceed with installing the [laptop API](https://github.com/timrobot/Cortano) onto your local machine to connect.
+Then once you have [obtained the ip address](https://learnubuntu.com/check-ip-address/) for the Jetson, proceed with installing the [remote API](https://github.com/timrobot/Cortano) onto your laptop or desktop to connect. The service should be running every time the robot powers on.
+
+### Bugs or Known Issues
+
+* Jetpack6 (22.04) seems to have issues related to USB comm ports. We are still working on this one.
+  * uninstall brltty via `sudo apt-get remove brltty; sudo reboot`
