@@ -18,9 +18,9 @@ After reboot, open a new Terminal and type of the following:
 ```bash
 sudo apt-get install python3-pip
 sudo pip3 install --upgrade pip
-sudo pip3 install pyserial numpy scipy websockets requests
-sudo apt-get install python3-opencv
-sudo pip3 install pyrealsense2 qoi
+sudo pip3 install pyserial numpy scipy websockets requests 
+# only for Jetson Orin Nano, as the older Jetson Nano fails:
+sudo pip3 install opencv-python pyrealsense2 qoi
 ```
 
 Clone [this repo](https://github.com/timrobot/CortexNanoBridge) to the Jetson, navigate to the `jetson_nano/` folder and run the installer:
@@ -31,9 +31,21 @@ sudo bash ./install.sh
 sudo reboot
 ```
 
+#### Jetson Orin Nano only
+On Ubuntu 22.04 (the operating system that Jetpack6 uses), CH340 drivers do not work all that well. So, a [couple of steps](https://www.makeriot2020.com/index.php/2022/06/23/fix-driver-issues-with-ch340g-on-ubuntu-22-04-lts-and-possibly-other-linux-distros/) may need to be followed to get it to work:
+```bash
+sudo apt-get uninstall brltty
+git clone https://github.com/juliagoda/CH341SER
+cd CH341SER
+sudo make clean
+sudo make
+sudo make load
+```
+
 #### Jetson Nano only
 Pyrealsense2 does not exist on python3.6, and neither does qoi. So, after downloading and unzipping the pyrealsense library from this [package](https://1drv.ms/u/c/8c3293b14db03b6a/EZwnQdvx1BhGig5cujsEzWsB_hDSkxKt6gR09siBo1fkGw?e=0IuBHC), install both:
 ```bash
+sudo apt-get install python3-opencv
 cd /path/to/pyrealsense
 sudo bash ./install.sh
 cd /path/to/CortexNanoBridge/jetson_nano
@@ -125,8 +137,3 @@ bash ./enable-cortex-autostart.sh
 ```
 
 Then once you have [obtained the ip address](https://learnubuntu.com/check-ip-address/) for the Jetson, proceed with installing the [remote API](https://github.com/timrobot/Cortano) onto your laptop or desktop to connect. The service should be running every time the robot powers on.
-
-### Bugs or Known Issues
-
-* Jetpack6 (22.04) seems to have issues related to USB comm ports. We are still working on this one.
-  * uninstall brltty via `sudo apt-get remove brltty; sudo reboot`
