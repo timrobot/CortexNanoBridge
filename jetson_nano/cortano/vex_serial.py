@@ -112,7 +112,11 @@ def _receive_data(connection, rxbuf):
   buf = connection.read(in_waiting)
   msg = None
   if buf:
-    rxbuf += buf.decode()
+    try:
+      rxbuf += buf.decode()
+    except Exception as e:
+      # format error due to noisy reading, clear buf
+      rxbuf = ""
     end = rxbuf.find(']')
     if end != -1:
       start = rxbuf.find('[', 0, end)
