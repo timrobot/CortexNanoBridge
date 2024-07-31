@@ -34,7 +34,7 @@ sudo reboot
 #### Jetson Orin Nano only
 On Ubuntu 22.04 (the operating system that Jetpack6 uses), CH340 drivers do not work all that well. So, a [couple of steps](https://www.makeriot2020.com/index.php/2022/06/23/fix-driver-issues-with-ch340g-on-ubuntu-22-04-lts-and-possibly-other-linux-distros/) may need to be followed to get it to work:
 ```bash
-sudo apt-get uninstall brltty
+sudo apt-get remove brltty
 git clone https://github.com/juliagoda/CH341SER
 cd CH341SER
 sudo make clean
