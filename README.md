@@ -34,7 +34,7 @@ sudo reboot
 #### Jetson Orin Nano only, if using VEX V5
 On Ubuntu 22.04 (the operating system that Jetpack6 uses), the drivers for the cables that communicate with the V5 do not work. So, a [couple of steps](https://www.makeriot2020.com/index.php/2022/06/23/fix-driver-issues-with-ch340g-on-ubuntu-22-04-lts-and-possibly-other-linux-distros/) are required to get it to work:
 ```bash
-sudo apt-get uninstall brltty
+sudo apt-get remove brltty
 git clone https://github.com/juliagoda/CH341SER
 cd CH341SER
 sudo make clean
