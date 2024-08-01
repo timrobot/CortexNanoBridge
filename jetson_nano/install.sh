@@ -4,6 +4,39 @@ echo "installing dependencies"
 sudo python3 install.py
 sudo python3 -m pip install .
 
+# do operating system dependent actions
+ubuntu_version=$(lsb_release -a 2>&1 | grep Description | awk '{print $3}')
+if [ "${ubuntu_version:0:5}" == '22.04' ]; then
+  echo 'Ubuntu 22.04 detected'
+  echo 'installing kernel driver module for CH34x'
+  sudo apt-get remove brltty
+  git clone https://github.com/juliagoda/CH341SER
+  cd CH341SER
+  sudo make clean
+  sudo make
+  sudo make load
+  sudo make install
+  echo "ch34x" | sudo tee -a /etc/modules
+  cd ..
+elif [ "${ubuntu_version:0:5}" == '20.04' ]; then
+  echo 'Ubuntu 20.04 detected; you are most likely on Jetpack 5'
+  echo 'Please upgrade your kernel firmware using the Getting Started steps'
+  exit 1
+elif [ "${ubuntu_version:0:5}" == '18.04' ]; then
+  echo 'Ubuntu 18.04 detected'
+  echo 'manually installing pyrealsense and qoi'
+  sudo apt-get install python3-opencv
+  curl -L "https://www.dropbox.com/scl/fi/0nhkxncc546qrksb4r5k6/pyrealsense2.zip?rlkey=26ix5qznmrmusebvvefgpcbi1&st=bwb4kug2&dl=1" -o pyrealsense2.zip
+  unzip pyrealsense2.zip
+  cd pyrealsense2
+  sudo bash ./install.sh
+  cd ..
+  sudo cp -r qoi /usr/local/lib/python3.6/dist-packages
+else
+  echo 'Error: Unsupported or undetected Ubuntu version, quitting.'
+  exit 1
+end
+
 # /dev/ttyUSB* access from user, although it doesn't matter for su worker
 if [ $(getent group dialout) ]; then
   echo "adding: $USER :to group dialout"
@@ -19,4 +52,5 @@ fi
 # just in case we want to "reset" everything to its original state, disable the service
 echo "clearing autostart service. do not worry if this fails."
 sudo systemctl disable nvcortexnano.service
+
 echo "done installing, reboot your Jetson Nano"

@@ -31,28 +31,7 @@ sudo bash ./install.sh
 sudo reboot
 ```
 
-#### Jetson Orin Nano only, if using VEX V5
-On Ubuntu 22.04 (the operating system that Jetpack6 uses), the drivers for the cables that communicate with the V5 do not work. So, a [couple of steps](https://www.makeriot2020.com/index.php/2022/06/23/fix-driver-issues-with-ch340g-on-ubuntu-22-04-lts-and-possibly-other-linux-distros/) are required to get it to work:
-```bash
-sudo apt-get remove brltty
-git clone https://github.com/juliagoda/CH341SER
-cd CH341SER
-sudo make clean
-sudo make
-sudo make load
-sudo make install
-echo "ch34x" | sudo tee -a /etc/modules
-```
-
-#### Jetson Nano only
-Pyrealsense2 does not exist on python3.6, and neither does qoi. So, after downloading and unzipping the pyrealsense library from this [package](https://1drv.ms/u/c/8c3293b14db03b6a/EZwnQdvx1BhGig5cujsEzWsB_hDSkxKt6gR09siBo1fkGw?e=0IuBHC), install both:
-```bash
-sudo apt-get install python3-opencv
-cd /path/to/pyrealsense
-sudo bash ./install.sh
-cd /path/to/CortexNanoBridge/jetson_nano
-sudo cp -r qoi /usr/local/lib/python3.6/dist-packages
-```
+You have finished installing the software on the Jetson, now to install the software on the microcontroller.
 
 ### VEX Microcontroller Installation
 
