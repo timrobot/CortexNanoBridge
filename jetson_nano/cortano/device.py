@@ -9,10 +9,10 @@ import time
 import pyrealsense2 as rs
 from typing import Tuple
 import cv2
-from vex_serial import VexCortex
 import logging
+from .vex_serial import VexCortex
 
-logging.basicConfig(filename="/var/log/cortano.log",
+logging.basicConfig(filename="cortano.log",
                     filemode='a',
                     format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
                     datefmt='%H:%M:%S',

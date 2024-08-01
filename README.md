@@ -3,7 +3,7 @@
 This library is meant to be a lightweight bridge between the VEX V5 or Cortex systems and the Jetson (Orin) Nano. Note that different versions of Jetson and VEX systems have different library support and behaviors, and unfortunately that means that this guide will be quite involved. However, once you are able to set up the bridge, creating your robot code should be straightforward.
 
 ### Getting Started
-Follow the [Jetson Orin Nano guide](https://developer.nvidia.com/embedded/learn/get-started-jetson-orin-nano-devkit) or the [Jetson Nano Guide](https://developer.nvidia.com/embedded/learn/get-started-jetson-nano-devkit). Remember to set "log in automatically" instead of "require my password to log in". Set power usage to 15W (Jetson Orin Nano) or MAXN (Jetson Nano). Expand storage to max size as shown (ie. 59300).
+Follow the [Jetson Orin Nano guide](https://developer.nvidia.com/embedded/learn/get-started-jetson-orin-nano-devkit) or the [Jetson Nano guide](https://developer.nvidia.com/embedded/learn/get-started-jetson-nano-devkit). Remember to set "log in automatically" instead of "require my password to log in". Set power usage to 15W (Jetson Orin Nano) or MAXN (Jetson Nano). Expand storage to max size as shown (ie. 59300).
 
 ### Jetson Package Installation
 
@@ -31,8 +31,8 @@ sudo bash ./install.sh
 sudo reboot
 ```
 
-#### Jetson Orin Nano only
-On Ubuntu 22.04 (the operating system that Jetpack6 uses), CH340 drivers do not work all that well. So, a [couple of steps](https://www.makeriot2020.com/index.php/2022/06/23/fix-driver-issues-with-ch340g-on-ubuntu-22-04-lts-and-possibly-other-linux-distros/) may need to be followed to get it to work:
+#### Jetson Orin Nano only, if using VEX V5
+On Ubuntu 22.04 (the operating system that Jetpack6 uses), the drivers for the cables that communicate with the V5 do not work. So, a [couple of steps](https://www.makeriot2020.com/index.php/2022/06/23/fix-driver-issues-with-ch340g-on-ubuntu-22-04-lts-and-possibly-other-linux-distros/) are required to get it to work:
 ```bash
 sudo apt-get uninstall brltty
 git clone https://github.com/juliagoda/CH341SER
@@ -40,6 +40,8 @@ cd CH341SER
 sudo make clean
 sudo make
 sudo make load
+sudo make install
+echo "ch34x" | sudo tee -a /etc/modules
 ```
 
 #### Jetson Nano only

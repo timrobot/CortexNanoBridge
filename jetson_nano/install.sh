@@ -17,5 +17,6 @@ else
 fi
 
 # just in case we want to "reset" everything to its original state, disable the service
+echo "clearing autostart service. do not worry if this fails."
 sudo systemctl disable nvcortexnano.service
 echo "done installing, reboot your Jetson Nano"

@@ -1,4 +1,4 @@
-from cortano import VexV5, VexCortex, RealsenseCamera
+from cortano import VexV5, RealsenseCamera
 
 if __name__ == "__main__":
   realsense = RealsenseCamera()

@@ -4,7 +4,7 @@ import cv2
 
 if __name__ == "__main__":
   realsense = RealsenseCamera()
-  robot = VexCortex("/dev/ttyUSB0")
+  robot = VexCortex()
   lan.start(port=9999, robot=robot)
   second_cam_path = getNextWebcamPath()
   second_camera = None
