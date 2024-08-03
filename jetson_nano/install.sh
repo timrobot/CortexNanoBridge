@@ -35,7 +35,7 @@ elif [ "${ubuntu_version:0:5}" == '18.04' ]; then
 else
   echo 'Error: Unsupported or undetected Ubuntu version, quitting.'
   exit 1
-end
+fi
 
 # /dev/ttyUSB* access from user, although it doesn't matter for su worker
 if [ $(getent group dialout) ]; then
