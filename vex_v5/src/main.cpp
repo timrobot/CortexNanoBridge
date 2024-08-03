@@ -270,9 +270,9 @@ DecodeMessage() {
 
 int receiveTask() {
     // enable port 18 as generic serial port
-    vexGenericSerialEnable( vex::PORT18, 0 );
+    vexGenericSerialEnable( vex::PORT19, 0 );
     // change baud rate, default is 230k
-    vexGenericSerialBaudrate( vex::PORT18, 115200 );
+    vexGenericSerialBaudrate( vex::PORT19, 115200 );
     // allow vexos to reconfigure the port
     // the port will remain as a generic serial port until the brain is power cycled
     this_thread::sleep_for(10);
@@ -281,7 +281,7 @@ int receiveTask() {
 
     while(1) {
       // check to see if we have any bytes in the receive buffer
-      int nRead = vexGenericSerialReceive( vex::PORT18,
+      int nRead = vexGenericSerialReceive( vex::PORT19,
         &MyComms.rxbuf[MyComms.rxcnt], RX_BUF_SIZE - MyComms.rxcnt - 1 );
     
       // if data found, then decode any message that may exist
