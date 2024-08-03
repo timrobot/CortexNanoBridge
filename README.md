@@ -40,7 +40,7 @@ In addition to installing the library on the Jetson Nano, we will need to push c
 #### V5 Brain
 1. Install the [VEX Extension for VSCode](https://www.vexrobotics.com/vexcode/vscode-extension). Connect a microusb cable to the V5 Brain, and update firmware.
 2. Create a new VEX Project > V5 > C/C++ > Clawbot Template (Motors). Copy `CortexNanoBridge/vex_v5/src/main.cpp` to the new project's `src/` folder. Build and download the code to the V5 Brain, and disconnect the microusb cable.
-3. Plug in the RS485 cables on ports 18 and 20, and plug in their USBs into the Jetson. Run the application from the V5 Brain screen.
+3. Plug in the RS485 cables on ports 19 and 20, and plug in their USBs into the Jetson. Run the application from the V5 Brain screen.
 
 #### VEX Cortex
 1. Install the [RobotC GUI](https://www.robotc.net/). Connect a usb cable to the Cortex, and update firmware. Remember to select (USB only) mode from the communication style menu.
