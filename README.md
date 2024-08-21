@@ -7,8 +7,7 @@ Follow the [Jetson Orin Nano guide](https://developer.nvidia.com/embedded/learn/
 
 ### Jetson Package Installation
 
-Once you are logged in, open a Terminal, and type in the update cmds below.
-Try to keep all default (N) options as it prompts you for a choice. If you pick (Y), don't worry - as long as it boots you are good to go. You don't have to restart docker daemon.
+Once you are logged in, open a Terminal, and type in the update cmds below. You can select (Y) for most of the options. You don't have to restart docker daemon.
 ```bash
 sudo apt-get update && sudo apt-get upgrade
 sudo reboot
@@ -38,8 +37,8 @@ You have finished installing the software on the Jetson, now to install the soft
 In addition to installing the library on the Jetson Nano, we will need to push comms code to the robot controller. On your laptop or desktop, clone [this repo](https://github.com/timrobot/CortexNanoBridge) so that we can upload the comms code. You will only have to do this once.
 
 #### V5 Brain
-1. Install the [VEX Extension for VSCode](https://www.vexrobotics.com/vexcode/vscode-extension). Connect a microusb cable to the V5 Brain, and update firmware.
-2. Create a new VEX Project > V5 > C/C++ > Clawbot Template (Motors). Copy `CortexNanoBridge/vex_v5/src/main.cpp` to the new project's `src/` folder. Build and download the code to the V5 Brain, and disconnect the microusb cable.
+1. Install the [VEX Extension for VSCode](https://www.vexrobotics.com/vexcode/vscode-extension), as well as the C/C++ extensions from Microsoft. Connect a microusb cable to the V5 Brain, and update firmware. You may need to update and restart VSCode a couple of times.
+2. Create a new VEX Project > V5 > C/C++ > Clawbot Template (Motors). Copy `CortexNanoBridge/vex_v5/src/main.cpp` to the new project's `src/` folder. If you accidentally selected the wrong initial template, that's okay - just copy over all the files in `src/` and `include/`. **Build and download** the code to the V5 Brain, and disconnect the microusb cable.
 3. Plug in the RS485 cables on ports 19 and 20, and plug in their USBs into the Jetson. Run the application from the V5 Brain screen.
 
 #### VEX Cortex
