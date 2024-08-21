@@ -13,7 +13,7 @@ sudo apt-get update && sudo apt-get upgrade
 sudo reboot
 ```
 
-After reboot, open a new Terminal and type of the following:
+After reboot, install librealsense by following [these steps (1, 2, 3)](https://github.com/IntelRealSense/librealsense/blob/master/doc/installation_jetson.md#4-install-with-debian-packages). Then open a new Terminal and type of the following:
 ```bash
 sudo apt-get install python3-pip
 sudo pip3 install --upgrade pip
