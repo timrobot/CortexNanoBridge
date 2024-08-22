@@ -50,9 +50,7 @@ Congratulations, you have finished setting everything up for the bridge! 👏
 
 ## Running Basic Code
 
-You have two options to control your robot. If you have the Jetson Nano and a beefy desktop or laptop GPU, it is highly recommended that you do option 2.
-
-#### Option 1. Jetson Control
+#### Jetson Orin Nano (Local Control)
 
 Remember to plug in your Realsense camera into the robot if you wish to get the color and depth frames.
 
@@ -102,9 +100,10 @@ if __name__ == "__main__":
 | 10 | Claw ang velocity | -inf | inf | velocity (degrees/second) |
 | 11 | Claw torque | -inf | inf | Nm * 1e3 |
 
-#### Option 2. Remote Control from a Laptop or Desktop
+#### Jetson Nano (Remote Control)
 
 On the Jetson, run either of the following to enable to automagical websocket communication stack.
+
 ```bash
 # Vex V5 Brain
 cd CortexNanoBridge/jetson_nano/scripts

@@ -5,8 +5,8 @@ sudo python3 install.py
 sudo python3 -m pip install .
 
 # do operating system dependent actions
-ubuntu_version=$(lsb_release -a 2>&1 | grep Description | awk '{print $3}')
-if [ "${ubuntu_version:0:5}" == '22.04' ]; then
+ubuntu_name=$(lsb_release -cs)
+if [ "${ubuntu_name}" == 'jammy' ]; then
   echo 'Ubuntu 22.04 detected'
   echo 'installing kernel driver module for CH34x'
   sudo apt-get remove brltty
@@ -18,11 +18,11 @@ if [ "${ubuntu_version:0:5}" == '22.04' ]; then
   sudo make install
   echo "ch34x" | sudo tee -a /etc/modules
   cd ..
-elif [ "${ubuntu_version:0:5}" == '20.04' ]; then
+elif [ "${ubuntu_name}" == 'focal' ]; then
   echo 'Ubuntu 20.04 detected; you are most likely on Jetpack 5'
   echo 'Please upgrade your kernel firmware using the Getting Started steps'
   exit 1
-elif [ "${ubuntu_version:0:5}" == '18.04' ]; then
+elif [ "${ubuntu_name}" == 'bionic' ]; then
   echo 'Ubuntu 18.04 detected'
   echo 'manually installing pyrealsense and qoi'
   sudo apt-get install python3-opencv
@@ -40,17 +40,13 @@ fi
 # /dev/ttyUSB* access from user, although it doesn't matter for su worker
 if [ $(getent group dialout) ]; then
   echo "adding: $USER :to group dialout"
-  sudo usermod -a -G dialout $USER
-  sudo usermod -a -G tty $USER
+  sudo usermod -aG dialout $USER
+  sudo usermod -aG tty $USER
 else
   echo "creating group dialout and adding: $USER :"
   sudo newgrp dialout
-  sudo usermod -a -G dialout $USER
-  sudo usermod -a -G tty $USER
+  sudo usermod -aG dialout $USER
+  sudo usermod -aG tty $USER
 fi
-
-# just in case we want to "reset" everything to its original state, disable the service
-echo "clearing autostart service. do not worry if this fails."
-sudo systemctl disable nvcortexnano.service
 
 echo "done installing, reboot your Jetson Nano"
