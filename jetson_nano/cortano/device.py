@@ -48,6 +48,7 @@ def handle_signal(sig, frame):
     VexCortex._entity._keep_running.value = False
 signal.signal(signal.SIGINT, handle_signal)
 
+
 class RealsenseCamera:
   def __init__(self, width=640, height=360, autostart=True):
     """
@@ -57,21 +58,12 @@ class RealsenseCamera:
     self.height = height
     self.shape = (height, width)
 
-    # self.intrinsic_matrix = self.metadata.intrinsics.intrinsic_matrix
     # used for USB 2.1 as found on the jetson nano
-    if height == 480:
-      self.fx = 614.5665893554688
-      self.fy = 614.4674682617188
-      self.cx = 313.47930908203125
-      self.cy = 235.6346435546875
-    elif height == 360:
-      self.fx = 460.92495728
-      self.fy = 460.85058594
-      self.cx = 315.10949707
-      self.cy = 176.72598267
+    self.fx = 460.92495728
+    self.fy = 460.85058594
+    self.cx = 315.10949707
+    self.cy = 176.72598267
 
-    self.hfov = np.degrees(np.arctan2(self.width  / 2, self.fx)) * 2
-    self.vfov = np.degrees(np.arctan2(self.height / 2, self.fy)) * 2
     self.pipeline = None
     self.depth_scale = 0.001
     self.align = None
@@ -90,8 +82,18 @@ class RealsenseCamera:
       config.enable_stream(rs.stream.depth, self.width, self.height, rs.format.z16, 30)
       config.enable_stream(rs.stream.color, self.width, self.height, rs.format.bgr8, 30)
       profile = self.pipeline.start(config)
+      
       # intel realsense on jetson nano sometimes get misdetected as 2.1 even though it has 3.2 USB
-      # profile = self.pipeline.start()
+      color_profile = profile.get_stream(rs.stream.color).as_video_stream_profile()
+      self.color_intrinsics = color_profile.get_intrinsics()
+      self.cx = self.color_intrinsics.ppx
+      self.cy = self.color_intrinsics.ppy
+      self.fx = self.color_intrinsics.fx
+      self.fy = self.color_intrinsics.fy
+
+      # Get the depth stream's video profile
+      depth_profile = profile.get_stream(rs.stream.depth).as_video_stream_profile()
+      self.depth_intrinsics = depth_profile.get_intrinsics()
 
       depth_sensor = profile.get_device().first_depth_sensor()
       self.depth_scale = depth_sensor.get_depth_scale()
@@ -152,7 +154,7 @@ class RealsenseCamera:
         logging.warning("Resetting pipeline since 0.5s passed")
         self.close()
       return np.zeros((self.height, self.width, 3), dtype=np.uint8), \
-              np.zeros((self.height, self.width), dtype=np.float32)
+              np.zeros((self.height, self.width), dtype=np.uint16)
     
     self.last_frame_received = time.time()
     if scale:
