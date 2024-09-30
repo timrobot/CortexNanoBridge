@@ -5,8 +5,9 @@ sudo python3 install.py
 sudo python3 -m pip install .
 
 # do operating system dependent actions
-ubuntu_name=$(lsb_release -cs)
-if [ "${ubuntu_name}" == 'jammy' ]; then
+DISTRO=$(lsb_release -is)
+VERSION=$(lsb_release -sr)
+if [[ "${VERSION}" == '22.04' ]]; then
   echo 'Ubuntu 22.04 detected'
   echo 'installing kernel driver module for CH34x'
   sudo apt-get remove brltty
@@ -18,11 +19,11 @@ if [ "${ubuntu_name}" == 'jammy' ]; then
   sudo make install
   echo "ch34x" | sudo tee -a /etc/modules
   cd ..
-elif [ "${ubuntu_name}" == 'focal' ]; then
+elif [[ "${VERSION}" == '20.04' ]]; then
   echo 'Ubuntu 20.04 detected; you are most likely on Jetpack 5'
   echo 'Please upgrade your kernel firmware using the Getting Started steps'
   exit 1
-elif [ "${ubuntu_name}" == 'bionic' ]; then
+elif [[ "${VERSION}" == '18.04' ]]; then
   echo 'Ubuntu 18.04 detected'
   echo 'manually installing pyrealsense and qoi'
   sudo apt-get install python3-opencv
