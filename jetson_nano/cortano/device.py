@@ -81,10 +81,10 @@ class RealsenseCamera:
       config = rs.config()
       config.enable_stream(rs.stream.depth, self.width, self.height, rs.format.z16, 30)
       config.enable_stream(rs.stream.color, self.width, self.height, rs.format.bgr8, 30)
-      profile = self.pipeline.start(config)
+      self.profile = self.pipeline.start(config)
       
       # intel realsense on jetson nano sometimes get misdetected as 2.1 even though it has 3.2 USB
-      color_profile = profile.get_stream(rs.stream.color).as_video_stream_profile()
+      color_profile = self.profile.get_stream(rs.stream.color).as_video_stream_profile()
       self.color_intrinsics = color_profile.get_intrinsics()
       self.cx = self.color_intrinsics.ppx
       self.cy = self.color_intrinsics.ppy
@@ -92,10 +92,10 @@ class RealsenseCamera:
       self.fy = self.color_intrinsics.fy
 
       # Get the depth stream's video profile
-      depth_profile = profile.get_stream(rs.stream.depth).as_video_stream_profile()
+      depth_profile = self.profile.get_stream(rs.stream.depth).as_video_stream_profile()
       self.depth_intrinsics = depth_profile.get_intrinsics()
 
-      depth_sensor = profile.get_device().first_depth_sensor()
+      depth_sensor = self.profile.get_device().first_depth_sensor()
       self.depth_scale = depth_sensor.get_depth_scale()
       self.align = rs.align(rs.stream.color)
 
