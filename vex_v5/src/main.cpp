@@ -91,6 +91,40 @@ std::vector<short> ReadSensors() {
   return sensor_values;
 }
 
+static unsigned short btnValue;
+static unsigned short axisValue[4];
+void controller_L1_Pressed()     { btnValue |= 0b0000000000000001; }
+void controller_L1_Released()    { btnValue &= 0b1111111111111110; }
+void controller_L2_Pressed()     { btnValue |= 0b0000000000000010; }
+void controller_L2_Released()    { btnValue &= 0b1111111111111101; }
+void controller_R1_Pressed()     { btnValue |= 0b0000000000000100; }
+void controller_R1_Released()    { btnValue &= 0b1111111111111011; }
+void controller_R2_Pressed()     { btnValue |= 0b0000000000001000; }
+void controller_R2_Released()    { btnValue &= 0b1111111111110111; }
+void controller_Up_Pressed()     { btnValue |= 0b0000000000010000; }
+void controller_Up_Released()    { btnValue &= 0b1111111111101111; }
+void controller_Down_Pressed()   { btnValue |= 0b0000000000100000; }
+void controller_Down_Released()  { btnValue &= 0b1111111111011111; }
+void controller_Left_Pressed()   { btnValue |= 0b0000000001000000; }
+void controller_Left_Released()  { btnValue &= 0b1111111110111111; }
+void controller_Right_Pressed()  { btnValue |= 0b0000000010000000; }
+void controller_Right_Released() { btnValue &= 0b1111111101111111; }
+void controller_X_Pressed()      { btnValue |= 0b0000000100000000; }
+void controller_X_Released()     { btnValue &= 0b1111111011111111; }
+void controller_B_Pressed()      { btnValue |= 0b0000001000000000; }
+void controller_B_Released()     { btnValue &= 0b1111110111111111; }
+void controller_Y_Pressed()      { btnValue |= 0b0000010000000000; }
+void controller_Y_Released()     { btnValue &= 0b1111101111111111; }
+void controller_A_Pressed()      { btnValue |= 0b0000100000000000; }
+void controller_A_Released()     { btnValue &= 0b1111011111111111; }
+
+void ReadController() {
+  axisValue[0] = static_cast<unsigned short>(Controller1.Axis1.position() + 100);
+  axisValue[1] = static_cast<unsigned short>(Controller1.Axis2.position() + 100);
+  axisValue[2] = static_cast<unsigned short>(Controller1.Axis3.position() + 100);
+  axisValue[3] = static_cast<unsigned short>(Controller1.Axis4.position() + 100);
+}
+
 
 /*---------------------------------------------------------------------------*/
 /*  Library code                                                             */
@@ -269,7 +303,7 @@ DecodeMessage() {
 
 
 int receiveTask() {
-    // enable port 18 as generic serial port
+    // enable port 19 as generic serial port
     vexGenericSerialEnable( vex::PORT19, 0 );
     // change baud rate, default is 230k
     vexGenericSerialBaudrate( vex::PORT19, 115200 );
@@ -325,6 +359,19 @@ SendMessage(std::vector<short>& sensor_values) {
   _data += 4;
   total_bytes += 4;
 
+  // send controller data
+  *_data++ = 's';
+  sprintf(_data, "%04x", btnValue);
+  _data += 4;
+  *_data++ = 's';
+  sprintf(_data, "%04x", (axisValue[0] << 8) | axisValue[1]);
+  _data += 4;
+  *_data++ = 's';
+  sprintf(_data, "%04x", (axisValue[2] << 8) | axisValue[3]);
+  _data += 4;
+  total_bytes += 15;
+
+  // send sensor data
   for (i = 0; i < sensor_values.size(); i++) {
     _value = (unsigned short)sensor_values[i];
     *_data++ = 's';
@@ -363,13 +410,41 @@ int main() {
   vexGenericSerialEnable( vex::PORT20, 0 );
   // change baud rate, default is 230k
   vexGenericSerialBaudrate( vex::PORT20, 115200 );
+
+  // add event handling for controller buttons
+  Controller1.ButtonL1.pressed(controller_L1_Pressed);
+  Controller1.ButtonL1.released(controller_L1_Released);
+  Controller1.ButtonL2.pressed(controller_L2_Pressed);
+  Controller1.ButtonL2.released(controller_L2_Released);
+  Controller1.ButtonR1.pressed(controller_R1_Pressed);
+  Controller1.ButtonR1.released(controller_R1_Released);
+  Controller1.ButtonR2.pressed(controller_R2_Pressed);
+  Controller1.ButtonR2.released(controller_R2_Released);
+  Controller1.ButtonUp.pressed(controller_Up_Pressed);
+  Controller1.ButtonUp.released(controller_Up_Released);
+  Controller1.ButtonDown.pressed(controller_Down_Pressed);
+  Controller1.ButtonDown.released(controller_Down_Released);
+  Controller1.ButtonLeft.pressed(controller_Left_Pressed);
+  Controller1.ButtonLeft.released(controller_Left_Released);
+  Controller1.ButtonRight.pressed(controller_Right_Pressed);
+  Controller1.ButtonRight.released(controller_Right_Released);
+  Controller1.ButtonX.pressed(controller_X_Pressed);
+  Controller1.ButtonX.released(controller_X_Released);
+  Controller1.ButtonB.pressed(controller_B_Pressed);
+  Controller1.ButtonB.released(controller_B_Released);
+  Controller1.ButtonY.pressed(controller_Y_Pressed);
+  Controller1.ButtonY.released(controller_Y_Released);
+  Controller1.ButtonA.pressed(controller_A_Pressed);
+  Controller1.ButtonA.released(controller_A_Released);
+
   // allow vexos to reconfigure the port
   // the port will remain as a generic serial port until the brain is power cycled
-  this_thread::sleep_for(10);
+  this_thread::sleep_for(15);
 
   struct time currtime;
 
   while(1) {
+    ReadController();
     std::vector<short> sensor_values = ReadSensors();
     SendMessage(sensor_values);
 

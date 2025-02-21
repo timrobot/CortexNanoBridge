@@ -25,14 +25,13 @@ elif [ "${VERSION}" = '20.04' ]; then
   exit 1
 elif [ "${VERSION}" = '18.04' ]; then
   echo 'Ubuntu 18.04 detected'
-  echo 'manually installing pyrealsense and qoi'
+  echo 'manually installing pyrealsense'
   sudo apt-get install python3-opencv
   curl -L "https://www.dropbox.com/scl/fi/0nhkxncc546qrksb4r5k6/pyrealsense2.zip?rlkey=26ix5qznmrmusebvvefgpcbi1&st=bwb4kug2&dl=1" -o pyrealsense2.zip
   unzip pyrealsense2.zip
   cd pyrealsense2
   sudo bash ./install.sh
   cd ..
-  sudo cp -r qoi /usr/local/lib/python3.6/dist-packages
 else
   echo 'Error: Unsupported or undetected Ubuntu version, quitting.'
   exit 1

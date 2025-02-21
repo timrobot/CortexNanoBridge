@@ -19,7 +19,7 @@ sudo apt-get install python3-pip
 sudo pip3 install --upgrade pip
 sudo pip3 install pyserial numpy scipy websockets requests 
 # only for Jetson Orin Nano, as the older Jetson Nano fails:
-sudo pip3 install opencv-python pyrealsense2 qoi
+sudo pip3 install opencv-python pyrealsense2
 ```
 
 Clone [this repo](https://github.com/timrobot/CortexNanoBridge) to the Jetson, navigate to the `jetson_nano/` folder and run the installer:
@@ -68,7 +68,27 @@ if __name__ == "__main__":
     robot.motor[9] = 0
 ```
 
+If you want to use the VexV5Controller, you can get the values via the controller bridge:
+
+```python
+from cortano import VexV5, RealsenseCamera
+
+if __name__ == "__main__":
+  realsense = RealsenseCamera()
+  robot = VexV5()
+
+  while robot.running():
+    color, depth = realsense.read()
+    sensors, battery = robot.sensors()
+    left = robot.controller.Axis3
+    right = robot.controller.Axis2
+    robot.motor[0] = left
+    robot.motor[9] = right
+```
+
 ### Action Space (V5)
+
+`robot.motors[<num>] = <value>`
 
 | Num | Action | Control Min | Control Max | Unit |
 | --- | ------ | ----------- | ----------- | ---- |
@@ -85,6 +105,8 @@ if __name__ == "__main__":
 
 ### Observation Space (V5)
 
+`sensors, battery = robot.sensors()`
+
 | Num | Action | Min | Max | Unit |
 | --- | ------ | --- | --- | ---- |
 | 0  | Left Motor ang position | -inf | inf | position (degrees) |
@@ -100,19 +122,25 @@ if __name__ == "__main__":
 | 10 | Claw ang velocity | -inf | inf | velocity (degrees/second) |
 | 11 | Claw torque | -inf | inf | Nm * 1e3 |
 
-#### Jetson Nano (Remote Control)
+### Controller API (V5)
 
-On the Jetson, run either of the following to enable to automagical websocket communication stack.
+`<value> = robot.controller.<property>`
 
-```bash
-# Vex V5 Brain
-cd CortexNanoBridge/jetson_nano/scripts
-bash ./enable-v5-autostart.sh
-```
-```bash
-# Vex Cortex
-cd CortexNanoBridge/jetson_nano/scripts
-bash ./enable-cortex-autostart.sh
-```
-
-Then once you have [obtained the ip address](https://learnubuntu.com/check-ip-address/) for the Jetson, proceed with installing the [remote API](https://github.com/timrobot/Cortano) onto your laptop or desktop to connect. The service should be running every time the robot powers on.
+| Property | Min | Max |
+| -------- | --- | --- |
+| ButtonL1    | 0 | 1 |
+| ButtonL2    | 0 | 1 |
+| ButtonR1    | 0 | 1 |
+| ButtonR2    | 0 | 1 |
+| ButtonUp    | 0 | 1 |
+| ButtonDown  | 0 | 1 |
+| ButtonLeft  | 0 | 1 |
+| ButtonRight | 0 | 1 |
+| ButtonX     | 0 | 1 |
+| ButtonB     | 0 | 1 |
+| ButtonY     | 0 | 1 |
+| ButtonA     | 0 | 1 |
+| Axis1 | -100 | 100 |
+| Axis2 | -100 | 100 |
+| Axis3 | -100 | 100 |
+| Axis4 | -100 | 100 |

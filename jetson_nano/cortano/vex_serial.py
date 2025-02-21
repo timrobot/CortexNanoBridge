@@ -212,6 +212,45 @@ def _serial_worker(path, baud, motors, sensors, nsensors, enabled, readtime, kee
     time.sleep(0.05)
   connection.close()
 
+class VexV5Controller:
+  def __init__(self):
+    self.ButtonL1 = 0
+    self.ButtonL2 = 0
+    self.ButtonR1 = 0
+    self.ButtonR2 = 0
+    self.ButtonUp = 0
+    self.ButtonDown = 0
+    self.ButtonLeft = 0
+    self.ButtonRight = 0
+    self.ButtonX = 0
+    self.ButtonB = 0
+    self.ButtonY = 0
+    self.ButtonA = 0
+    self.Axis1 = 0
+    self.Axis2 = 0
+    self.Axis3 = 0
+    self.Axis4 = 0
+
+  def _parse(self, values):
+    if len(values) == 3:
+      btnValue = values[0]
+      self.ButtonL1    = (btnValue & 0b0000000000000001) >> 0
+      self.ButtonL2    = (btnValue & 0b0000000000000010) >> 1
+      self.ButtonR1    = (btnValue & 0b0000000000000100) >> 2
+      self.ButtonR2    = (btnValue & 0b0000000000001000) >> 3
+      self.ButtonUp    = (btnValue & 0b0000000000010000) >> 4
+      self.ButtonDown  = (btnValue & 0b0000000000100000) >> 5
+      self.ButtonLeft  = (btnValue & 0b0000000001000000) >> 6
+      self.ButtonRight = (btnValue & 0b0000000010000000) >> 7
+      self.ButtonX     = (btnValue & 0b0000000100000000) >> 8
+      self.ButtonB     = (btnValue & 0b0000001000000000) >> 9
+      self.ButtonY     = (btnValue & 0b0000010000000000) >> 10
+      self.ButtonA     = (btnValue & 0b0000100000000000) >> 11
+      self.Axis1 = int(values[1] >> 8) - 100
+      self.Axis2 = int(values[1] & 0xFF) - 100
+      self.Axis3 = int(values[2] >> 8) - 100
+      self.Axis4 = int(values[2] & 0xFF) - 100
+
 class VexMicrocontroller:
   _entity = None
 
@@ -234,6 +273,9 @@ class VexMicrocontroller:
     self._num_sensors = Value(c_int, 1) # the first value will always be battery
     self._last_rx_time = Value(c_double, 0.0)
     self._motor_values = IndexableArray(10)
+
+    # Add in optional controller support, only on VexV5
+    self.controller = None
 
   def stop(self):
     self._keep_running.value = False
@@ -299,10 +341,19 @@ class VexMicrocontroller:
     """
     self._sensor_values._data.acquire()
     num_sensors = self._num_sensors.value
-    sensor_values = self._sensor_values._data[1:num_sensors]
     battery_level = self._sensor_values._data[0]
+    if battery_level <= 100:
+      num_sensors += 3
+    sensor_values = self._sensor_values._data[1:num_sensors]
     self._sensor_values._data.release()
-    if battery_level > 100: battery_level / 1e3
+    if battery_level > 100:
+      battery_level /= 1000.
+    else:
+      # vex_v5
+      if self.controller is None:
+        self.controller = VexV5Controller()
+      self.controller._parse(sensor_values[:3])
+      sensor_values = sensor_values[3:]
     return sensor_values, battery_level
   
 class VexCortex(VexMicrocontroller):
