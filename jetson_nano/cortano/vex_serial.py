@@ -77,6 +77,7 @@ def _decode_message(msg):
 
     battery_level = int(msg[4:8], base=16)
     sensor_values.append(battery_level) # the first value will always be the battery level
+    is_vex_v5 = battery_level <= 100
 
     ptr = 8
     while ptr < length - 3:
@@ -99,6 +100,12 @@ def _decode_message(msg):
       sensor_values.append(data)
       ptr += nbytes
 
+    if is_vex_v5:
+      Axis1 = int(sensor_values[2] >> 8) - 100
+      Axis2 = int(sensor_values[2] & 0xFF) - 100
+      Axis3 = int(sensor_values[3] >> 8) - 100
+      Axis4 = int(sensor_values[3] & 0xFF) - 100
+      sensor_values = sensor_values[:2] + [Axis1, Axis2, Axis3, Axis4] + sensor_values[4:]
     return sensor_values
 
   except ValueError:
@@ -232,7 +239,7 @@ class VexV5Controller:
     self.Axis4 = 0
 
   def _parse(self, values):
-    if len(values) == 3:
+    if len(values) == 5:
       btnValue = values[0]
       self.ButtonL1    = (btnValue & 0b0000000000000001) >> 0
       self.ButtonL2    = (btnValue & 0b0000000000000010) >> 1
@@ -246,10 +253,10 @@ class VexV5Controller:
       self.ButtonB     = (btnValue & 0b0000001000000000) >> 9
       self.ButtonY     = (btnValue & 0b0000010000000000) >> 10
       self.ButtonA     = (btnValue & 0b0000100000000000) >> 11
-      self.Axis1 = int(values[1] >> 8) - 100
-      self.Axis2 = int(values[1] & 0xFF) - 100
-      self.Axis3 = int(values[2] >> 8) - 100
-      self.Axis4 = int(values[2] & 0xFF) - 100
+      self.Axis1 = values[1]
+      self.Axis2 = values[2]
+      self.Axis3 = values[3]
+      self.Axis4 = values[4]
 
 class VexMicrocontroller:
   _entity = None
@@ -352,8 +359,8 @@ class VexMicrocontroller:
       # vex_v5
       if self.controller is None:
         self.controller = VexV5Controller()
-      self.controller._parse(sensor_values[:3])
-      sensor_values = sensor_values[3:]
+      self.controller._parse(sensor_values[:5])
+      sensor_values = sensor_values[5:]
     return sensor_values, battery_level
   
 class VexCortex(VexMicrocontroller):
