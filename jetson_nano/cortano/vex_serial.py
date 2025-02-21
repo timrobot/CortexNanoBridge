@@ -194,7 +194,7 @@ def _serial_worker(path, baud, motors, sensors, nsensors, enabled, readtime, kee
         connection.close()
         connected.value = False
 
-    if not connected.value or (_rxch and _rxch.value == _id): continue
+    if not connected.value or (_rxch and (_rxch.value == _id or _rxch.value == -1)): continue
     # outgoing 50hz
     t = time.time()
     if t - last_tx_time >= 0.02:
@@ -219,7 +219,7 @@ def _serial_worker(path, baud, motors, sensors, nsensors, enabled, readtime, kee
     time.sleep(0.05)
   connection.close()
 
-class VexV5Controller:
+class VexController:
   def __init__(self):
     self.ButtonL1 = 0
     self.ButtonL2 = 0
@@ -282,7 +282,7 @@ class VexMicrocontroller:
     self._motor_values = IndexableArray(10)
 
     # Add in optional controller support, only on VexV5
-    self.controller = None
+    self.controller = VexController()
 
   def stop(self):
     self._keep_running.value = False
@@ -358,7 +358,7 @@ class VexMicrocontroller:
     else:
       # vex_v5
       if self.controller is None:
-        self.controller = VexV5Controller()
+        self.controller = VexController()
       self.controller._parse(sensor_values[:5])
       sensor_values = sensor_values[5:]
     return sensor_values, battery_level

@@ -387,6 +387,7 @@ SendMessage(std::vector<short>& sensor_values) {
   buf[total_bytes-1] = 0;
   buf[total_bytes] = 0;
   buf[total_bytes+1] = ']';
+  Brain.Screen.printAt( 10, 90, &buf[2] );
   buf[total_bytes+2] = '\n';
 
   for (i = 2; i < total_bytes + 2; i++) {
