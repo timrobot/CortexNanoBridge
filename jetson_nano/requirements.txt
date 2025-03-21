@@ -1,5 +1,5 @@
-numpy
-websockets
+numpy==1.26.4
 requests
 pyserial
-scipy
+setuptools>=76.1.0
+packaging>=24.2

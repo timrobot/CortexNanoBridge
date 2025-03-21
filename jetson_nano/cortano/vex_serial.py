@@ -80,6 +80,16 @@ def _decode_message(msg):
     is_vex_v5 = battery_level <= 100
 
     ptr = 8
+    if is_vex_v5:
+      sensor_values.append(int(msg[8:12], base=16))
+      Axis12 = int(msg[12:16], base=16)
+      Axis34 = int(msg[16:20], base=16)
+      sensor_values.append(int(Axis12 >> 8) - 100)
+      sensor_values.append(int(Axis12 & 0xFF) - 100)
+      sensor_values.append(int(Axis34 >> 8) - 100)
+      sensor_values.append(int(Axis34 & 0xFF) - 100)
+      ptr += 12
+
     while ptr < length - 3:
       _type = msg[ptr]
       if _type == 'w':
@@ -100,12 +110,6 @@ def _decode_message(msg):
       sensor_values.append(data)
       ptr += nbytes
 
-    if is_vex_v5:
-      Axis1 = int(sensor_values[2] >> 8) - 100
-      Axis2 = int(sensor_values[2] & 0xFF) - 100
-      Axis3 = int(sensor_values[3] >> 8) - 100
-      Axis4 = int(sensor_values[3] & 0xFF) - 100
-      sensor_values = sensor_values[:2] + [Axis1, Axis2, Axis3, Axis4] + sensor_values[4:]
     return sensor_values
 
   except ValueError:
@@ -197,7 +201,7 @@ def _serial_worker(path, baud, motors, sensors, nsensors, enabled, readtime, kee
     if not connected.value or (_rxch and (_rxch.value == _id or _rxch.value == -1)): continue
     # outgoing 50hz
     t = time.time()
-    if t - last_tx_time >= 0.02:
+    if t - last_tx_time >= 0.1:#0.02:
       last_tx_time = t
       values = [0] * len(motors)
       if enabled.value:
@@ -360,7 +364,7 @@ class VexMicrocontroller:
       if self.controller is None:
         self.controller = VexController()
       self.controller._parse(sensor_values[:5])
-      sensor_values = sensor_values[5:]
+      sensor_values = sensor_values[3:]
     return sensor_values, battery_level
   
 class VexCortex(VexMicrocontroller):

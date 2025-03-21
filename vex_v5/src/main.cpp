@@ -26,6 +26,9 @@
 
 using namespace vex;
 
+#define READ_PORT vex::PORT11
+#define WRITE_PORT vex::PORT12
+
 #define MATH_CLIP(x, a, b) ((x) < (a) ? (a) : ((x) > (b) ? (b) : (x)))
 
 void SetMotors(std::vector<int>& motor_values) {
@@ -125,7 +128,6 @@ void ReadController() {
   axisValue[3] = static_cast<unsigned short>(Controller1.Axis4.position() + 100);
 }
 
-
 /*---------------------------------------------------------------------------*/
 /*  Library code                                                             */
 /*---------------------------------------------------------------------------*/
@@ -160,7 +162,7 @@ static message_t _motor_value_message;
 static message_t _sensor_value_message;
 
 #define MAX_SNSR_CNT  20
-#define MAX_MTR_CNT   10 // legacy value, can be optimized in the future but not now
+#define MAX_MTR_CNT   20
 
 // read/write bufs
 static std::vector<int> _motor_values(MAX_MTR_CNT, 0);
@@ -231,7 +233,7 @@ ExtractMessage() {
 
 int
 DecodeMessage() {
-  int             i, length;
+  int             i, length, num_motors;
   message_t       &msg = _motor_value_message;
   char            m1, m2, *p = (char *)msg.data;
   unsigned char   chk_sum, cmd;
@@ -243,21 +245,17 @@ DecodeMessage() {
   }
 
   cmd = *p++;
-  if (cmd != CMD_CONTROL_MOTOR_VALUES && cmd != CMD_INFO_IP) {
+  if (cmd == CMD_INFO_IP && msg.length == 11) {
+    char ipv4_str[50] = {0};
+    sprintf(ipv4_str, "Connection status: connected");
+    Brain.Screen.printAt( 10, 50, ipv4_str );
+    return (SUCCESS);
+  } else if (cmd == CMD_CONTROL_MOTOR_VALUES && msg.length == 27) { // the 27 might need to change in the future to 47
+  } else {
     return( FAILURE );
   }
 
-  if (cmd == CMD_INFO_IP && msg.length == 11) {
-    char ipv4_str[50] = {0};
-    sprintf(ipv4_str, "IPv4: %d.%d.%d.%d             ",
-      (FROMHEX4(p[0]) << 4) + FROMHEX4(p[1]),
-      (FROMHEX4(p[2]) << 4) + FROMHEX4(p[3]),
-      (FROMHEX4(p[4]) << 4) + FROMHEX4(p[5]),
-      (FROMHEX4(p[6]) << 4) + FROMHEX4(p[7])
-    );
-    Brain.Screen.printAt( 10, 50, ipv4_str );
-    return (SUCCESS);
-  }
+  num_motors = (msg.length - 7) / 2;
 
   m1 = *p++;
   m2 = *p++;
@@ -288,7 +286,7 @@ DecodeMessage() {
   }
 
   p = (char *)&msg.data[4];
-  for (i = 0; i < 10; i++) {
+  for (i = 0; i < num_motors; i++) {
     m1 = *p++;
     m2 = *p++;
 
@@ -303,10 +301,10 @@ DecodeMessage() {
 
 
 int receiveTask() {
-    // enable port 19 as generic serial port
-    vexGenericSerialEnable( vex::PORT19, 0 );
+    // enable port 18 as generic serial port
+    vexGenericSerialEnable( READ_PORT, 0 );
     // change baud rate, default is 230k
-    vexGenericSerialBaudrate( vex::PORT19, 115200 );
+    vexGenericSerialBaudrate( READ_PORT, 115200 );
     // allow vexos to reconfigure the port
     // the port will remain as a generic serial port until the brain is power cycled
     this_thread::sleep_for(10);
@@ -315,7 +313,7 @@ int receiveTask() {
 
     while(1) {
       // check to see if we have any bytes in the receive buffer
-      int nRead = vexGenericSerialReceive( vex::PORT19,
+      int nRead = vexGenericSerialReceive( READ_PORT,
         &MyComms.rxbuf[MyComms.rxcnt], RX_BUF_SIZE - MyComms.rxcnt - 1 );
     
       // if data found, then decode any message that may exist
@@ -360,16 +358,12 @@ SendMessage(std::vector<short>& sensor_values) {
   total_bytes += 4;
 
   // send controller data
-  *_data++ = 's';
-  sprintf(_data, "%04x", btnValue);
-  _data += 4;
-  *_data++ = 's';
-  sprintf(_data, "%04x", (axisValue[0] << 8) | axisValue[1]);
-  _data += 4;
-  *_data++ = 's';
-  sprintf(_data, "%04x", (axisValue[2] << 8) | axisValue[3]);
-  _data += 4;
-  total_bytes += 15;
+  sprintf(_data, "%04x%04x%04x",
+    btnValue,
+    (axisValue[0] << 8) | axisValue[1],
+    (axisValue[2] << 8) | axisValue[3]);
+  _data += 12;
+  total_bytes += 12;
 
   // send sensor data
   for (i = 0; i < sensor_values.size(); i++) {
@@ -387,7 +381,6 @@ SendMessage(std::vector<short>& sensor_values) {
   buf[total_bytes-1] = 0;
   buf[total_bytes] = 0;
   buf[total_bytes+1] = ']';
-  Brain.Screen.printAt( 10, 90, &buf[2] );
   buf[total_bytes+2] = '\n';
 
   for (i = 2; i < total_bytes + 2; i++) {
@@ -396,7 +389,7 @@ SendMessage(std::vector<short>& sensor_values) {
   buf[total_bytes-1] = TOHEX4((chk_sum >> 4) & 0xF);
   buf[total_bytes]   = TOHEX4(chk_sum & 0xF);
 
-  vexGenericSerialTransmit( vex::PORT20, (uint8_t *)buf, total_bytes + 3 );
+  vexGenericSerialTransmit( WRITE_PORT, (uint8_t *)buf, total_bytes + 3 );
   return( SUCCESS );
 }
 
@@ -408,9 +401,9 @@ int main() {
   vex::thread rxThread( receiveTask );
 
   // enable port 20 as generic serial port
-  vexGenericSerialEnable( vex::PORT20, 0 );
+  vexGenericSerialEnable( WRITE_PORT, 0 );
   // change baud rate, default is 230k
-  vexGenericSerialBaudrate( vex::PORT20, 115200 );
+  vexGenericSerialBaudrate( WRITE_PORT, 115200 );
 
   // add event handling for controller buttons
   Controller1.ButtonL1.pressed(controller_L1_Pressed);
@@ -440,7 +433,7 @@ int main() {
 
   // allow vexos to reconfigure the port
   // the port will remain as a generic serial port until the brain is power cycled
-  this_thread::sleep_for(15);
+  this_thread::sleep_for(10);
 
   struct time currtime;
 

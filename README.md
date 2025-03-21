@@ -16,8 +16,8 @@ sudo reboot
 After reboot, install librealsense by following [these steps (1, 2, 3)](https://github.com/IntelRealSense/librealsense/blob/master/doc/installation_jetson.md#4-install-with-debian-packages). Then open a new Terminal and type of the following:
 ```bash
 sudo apt-get install python3-pip
-sudo pip3 install --upgrade pip
-sudo pip3 install pyserial numpy scipy websockets requests 
+sudo pip3 install --upgrade pip setuptools packaging
+sudo pip3 install pyserial numpy requests
 # only for Jetson Orin Nano, as the older Jetson Nano fails:
 sudo pip3 install opencv-python pyrealsense2
 ```

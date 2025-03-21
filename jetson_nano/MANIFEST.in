@@ -29,9 +29,6 @@ graft cortano
 graft scripts
 
 # Misc
-include pyproject.toml
-include README.md
 include requirements.txt
 include setup.py
-include setup.cfg
 include LICENSE.txt
