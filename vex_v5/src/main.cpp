@@ -26,8 +26,8 @@
 
 using namespace vex;
 
-#define READ_PORT vex::PORT11
-#define WRITE_PORT vex::PORT12
+#define READ_PORT vex::PORT19
+#define WRITE_PORT vex::PORT20
 
 #define MATH_CLIP(x, a, b) ((x) < (a) ? (a) : ((x) > (b) ? (b) : (x)))
 
