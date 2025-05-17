@@ -18,7 +18,7 @@ After reboot, install librealsense by following [these steps (1, 2, 3)](https://
 sudo apt-get install python3-pip
 sudo pip3 install --upgrade pip setuptools packaging
 sudo pip3 install pyserial numpy requests
-# only for Jetson Orin Nano, as the older Jetson Nano fails:
+# Jetson Orin Nano only, as the older Jetson Nano fails:
 sudo pip3 install opencv-python pyrealsense2
 ```
 

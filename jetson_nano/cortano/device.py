@@ -50,19 +50,21 @@ signal.signal(signal.SIGINT, handle_signal)
 
 
 class RealsenseCamera:
-  def __init__(self, width=640, height=360, autostart=True):
+  def __init__(self, autostart=True, postprocessing=True):
     """
     Initialize a realsense camera on this device
     """
-    self.width = width
-    self.height = height
-    self.shape = (height, width)
-
+    self.width = 640
+    self.height = 360
+    self.shape = (self.height, self.width)
+    
     # used for USB 2.1 as found on the jetson nano
     self.fx = 460.92495728
     self.fy = 460.85058594
     self.cx = 315.10949707
     self.cy = 176.72598267
+    self.hfov = 2 * np.arctan2(self.width  / 2, self.fx) # radians
+    self.vfov = 2 * np.arctan2(self.height / 2, self.fy) # radians
 
     self.pipeline = None
     self.depth_scale = 0.001
@@ -73,27 +75,48 @@ class RealsenseCamera:
     # just to make sure camera is still working
     self.last_frame_received = 0.0
     self.last_frame_reset = 0.5 # 500ms reset camera if nothing received
+    self.postprocessing = postprocessing
+
+    self.depth_to_disparity = rs.disparity_transform(True)
+    self.disparity_to_depth = rs.disparity_transform(False)
+
+    self.decimation = rs.decimation_filter()
+    self.decimation_filter_magnitude = 1 if not postprocessing else 2
+    self.decimation.set_option(rs.option.filter_magnitude, self.decimation_filter_magnitude)
+
+    self.spatial = rs.spatial_filter()
+
+    # do not use temporal filter for now since we are moving around, and temporal filter is best for static scenes
+    self.temporal = rs.temporal_filter()
+    self.temporal_frames = []
+
+    self.hole_filling = rs.hole_filling_filter()
 
   def open(self):
     try:
       self.pipeline = rs.pipeline()
       
       config = rs.config()
-      config.enable_stream(rs.stream.depth, self.width, self.height, rs.format.z16, 30)
+      # decimation is only applied to depth stream
+      depth_width = self.width if not self.postprocessing else self.width * self.decimation_filter_magnitude
+      depth_height = self.height if not self.postprocessing else self.height * self.decimation_filter_magnitude
       config.enable_stream(rs.stream.color, self.width, self.height, rs.format.bgr8, 30)
+      config.enable_stream(rs.stream.depth, depth_width, depth_height, rs.format.z16, 30)
       self.profile = self.pipeline.start(config)
       
       # intel realsense on jetson nano sometimes get misdetected as 2.1 even though it has 3.2 USB
-      color_profile = self.profile.get_stream(rs.stream.color).as_video_stream_profile()
-      self.color_intrinsics = color_profile.get_intrinsics()
-      self.cx = self.color_intrinsics.ppx
-      self.cy = self.color_intrinsics.ppy
-      self.fx = self.color_intrinsics.fx
-      self.fy = self.color_intrinsics.fy
+      self.color_profile = self.profile.get_stream(rs.stream.color).as_video_stream_profile()
+      self.color_intrinsics = self.color_profile.get_intrinsics()
 
       # Get the depth stream's video profile
-      depth_profile = self.profile.get_stream(rs.stream.depth).as_video_stream_profile()
-      self.depth_intrinsics = depth_profile.get_intrinsics()
+      self.depth_profile = self.profile.get_stream(rs.stream.depth).as_video_stream_profile()
+      self.depth_intrinsics = self.depth_profile.get_intrinsics()
+      self.fx = self.depth_intrinsics.fx / self.decimation_filter_magnitude
+      self.fy = self.depth_intrinsics.fy / self.decimation_filter_magnitude
+      self.cx = self.ppx = self.depth_intrinsics.ppx / self.decimation_filter_magnitude
+      self.cy = self.ppy = self.depth_intrinsics.ppy / self.decimation_filter_magnitude
+      self.hfov = 2 * np.arctan2(self.width  / 2, self.fx) # radians
+      self.vfov = 2 * np.arctan2(self.height / 2, self.fy) # radians
 
       depth_sensor = self.profile.get_device().first_depth_sensor()
       self.depth_scale = depth_sensor.get_depth_scale()
@@ -125,6 +148,16 @@ class RealsenseCamera:
         aligned_frames = self.align.process(frames)
         color_frame = aligned_frames.get_color_frame()
         depth_frame = aligned_frames.get_depth_frame()
+
+        if color_frame is None or depth_frame is None:
+          return False, None, None
+
+        if self.postprocessing:
+          depth_frame = self.decimation.process(depth_frame)
+          depth_frame = self.spatial.process(depth_frame)
+          # depth_frame = self.temporal.process(depth_frame)
+          depth_frame = self.hole_filling.process(depth_frame)
+
         color_image = np.asanyarray(color_frame.get_data())
         depth_image = np.asanyarray(depth_frame.get_data())
         
@@ -146,7 +179,16 @@ class RealsenseCamera:
       self.pipeline.stop()
       self.pipeline = None
 
-  def read(self, scale=False): # will also store in buffer to be read
+  def read(self, scale=True) -> Tuple[np.ndarray, np.ndarray]: # will also store in buffer to be read
+    """
+    Read a frame from the realsense camera
+
+    Args:
+        scale (bool, optional): Convert uint16 depth to float32 meters. Defaults to True.
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray]: color image, depth image
+    """
     ret, color, depth = self.capture()
     if not ret:
       logging.warning("Could not access proper frames")
@@ -154,7 +196,7 @@ class RealsenseCamera:
         logging.warning("Resetting pipeline since 0.5s passed")
         self.close()
       return np.zeros((self.height, self.width, 3), dtype=np.uint8), \
-              np.zeros((self.height, self.width), dtype=np.uint16)
+             np.zeros((self.height, self.width), dtype=np.uint16)
     
     self.last_frame_received = time.time()
     if scale:

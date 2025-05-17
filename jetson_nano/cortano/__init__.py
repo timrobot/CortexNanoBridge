@@ -22,16 +22,6 @@ from .device import (
     RealsenseCamera,
     getNextWebcamPath
 )
-from .lan import (
-    start,
-    stop,
-    set_frames,
-    read,
-    write,
-    readtime,
-    check_alive,
-    running
-)
 from .vex_serial import (
     MLIMIT,
     IndexableArray,
