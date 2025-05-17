@@ -201,7 +201,7 @@ def _serial_worker(path, baud, motors, sensors, nsensors, enabled, readtime, kee
     if not connected.value or (_rxch and (_rxch.value == _id or _rxch.value == -1)): continue
     # outgoing 50hz
     t = time.time()
-    if t - last_tx_time >= 0.1:#0.02:
+    if t - last_tx_time >= 0.02:
       last_tx_time = t
       values = [0] * len(motors)
       if enabled.value:
